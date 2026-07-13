@@ -1,0 +1,22 @@
+disabled_rules:
+  - trailing_whitespace
+  - trailing_comma
+  - opening_brace
+
+opt_in_rules:
+  - empty_count
+  - force_unwrapping
+  - redundant_nil_coalescing
+  - explicit_init
+  - sorted_imports
+  - first_where
+
+line_length:
+  warning: 150
+  error: 250
+
+identifier_name:
+  min_length: 2
+  max_length: 40
+  allowed_symbols:
+    - "_"
