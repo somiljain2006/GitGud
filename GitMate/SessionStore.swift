@@ -17,6 +17,14 @@ final class SessionStore: ObservableObject {
     @Published var savedEmail: String {
         didSet { UserDefaults.standard.set(savedEmail, forKey: Keys.savedEmail) }
     }
+    
+    var githubUsername: String {
+        let trimmed = savedEmail.trimmingCharacters(in: .whitespacesAndNewlines)
+        if let url = URL(string: trimmed), let username = url.pathComponents.last {
+            return username
+        }
+        return trimmed.components(separatedBy: "/").last ?? trimmed
+    }
 
     private(set) var savedAccessKey: String?
 
@@ -30,7 +38,6 @@ final class SessionStore: ObservableObject {
         savedEmail = email
         self.savedAccessKey = accessKey
 
-        // Always securely store the access key on sign in
         KeychainHelper.save(accessKey, service: Keys.service, account: Keys.accessKey)
 
         isLoggedIn = true
@@ -38,7 +45,6 @@ final class SessionStore: ObservableObject {
 
     func signOut() {
         isLoggedIn = false
-        // Delete the secure token, but keep the email for easier re-login
         KeychainHelper.delete(service: Keys.service, account: Keys.accessKey)
         savedAccessKey = nil
     }
