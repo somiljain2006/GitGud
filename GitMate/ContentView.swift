@@ -105,7 +105,7 @@ struct ContentView: View {
         .clipShape(RoundedRectangle(cornerRadius: 28, style: .continuous))
         .shadow(color: Color.cyan.opacity(0.16), radius: 24, x: 0, y: 8)
         .padding(.horizontal, 18)
-        .padding(.bottom, 12)
+        .padding(.bottom, -20)
     }
 }
 
