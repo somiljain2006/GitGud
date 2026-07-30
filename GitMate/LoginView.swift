@@ -7,19 +7,17 @@
 
 import SwiftUI
 
-// MARK: - Theme Colors (Tailwind Config Translation)
 extension Color {
     static let themeBackground = Color(red: 13/255.0, green: 21/255.0, blue: 20/255.0)
-    static let themePrimary = Color(red: 133/255.0, green: 255/255.0, blue: 241/255.0) // #85fff1
-    static let themePrimaryVariant = Color(red: 0/255.0, green: 218/255.0, blue: 243/255.0) // #00daf3
-    static let themeCard = Color(red: 47/255.0, green: 54/255.0, blue: 53/255.0) // #2f3635
-    static let themeInput = Color(red: 13/255.0, green: 21/255.0, blue: 20/255.0) // #0d1514
-    static let themeSurfaceContainer = Color(red: 26/255.0, green: 33/255.0, blue: 32/255.0) // #1a2120
-    static let themeOnSurfaceVariant = Color(red: 186/255.0, green: 202/255.0, blue: 198/255.0) // #bacac6
-    static let themeOnPrimary = Color(red: 0/255.0, green: 32/255.0, blue: 29/255.0) // #00201d
+    static let themePrimary = Color(red: 133/255.0, green: 255/255.0, blue: 241/255.0)
+    static let themePrimaryVariant = Color(red: 0/255.0, green: 218/255.0, blue: 243/255.0)
+    static let themeCard = Color(red: 47/255.0, green: 54/255.0, blue: 53/255.0)
+    static let themeInput = Color(red: 13/255.0, green: 21/255.0, blue: 20/255.0)
+    static let themeSurfaceContainer = Color(red: 26/255.0, green: 33/255.0, blue: 32/255.0)
+    static let themeOnSurfaceVariant = Color(red: 186/255.0, green: 202/255.0, blue: 198/255.0)
+    static let themeOnPrimary = Color(red: 0/255.0, green: 32/255.0, blue: 29/255.0)
 }
 
-// MARK: - Focus State
 enum FormField {
     case githubLink
     case accessKey
@@ -29,13 +27,11 @@ struct LoginView: View {
     @EnvironmentObject private var session: SessionStore
     @Environment(\.openURL) private var openURL
     
-    // Form State
     @State private var githubLink: String = ""
     @State private var accessKey: String = ""
     @State private var showKey = false
     @State private var errorMessage: String?
     
-    // UI State
     @State private var tiltX: Double = 0
     @State private var tiltY: Double = 0
     @FocusState private var focusedField: FormField?
@@ -44,7 +40,6 @@ struct LoginView: View {
         ZStack {
             background
             
-            // Ambient glows
             ambientGlow(topLeading: true)
             ambientGlow(topLeading: false)
             
@@ -70,13 +65,12 @@ struct LoginView: View {
         }
         .preferredColorScheme(.dark)
         .onAppear {
-            githubLink = session.savedEmail // Reused session variable or update SessionStore field
+            githubLink = session.savedEmail
             accessKey = session.savedAccessKey ?? ""
         }
     }
 }
 
-// MARK: - Core UI Components
 extension LoginView {
     
     private var loginCard: some View {
@@ -181,7 +175,6 @@ extension LoginView {
     }
 }
 
-// MARK: - ViewBuilders & Helper Views
 extension LoginView {
     
     private var headerSection: some View {
@@ -312,7 +305,6 @@ extension LoginView {
     }
 }
 
-// MARK: - Validation & Actions
 extension LoginView {
     private func signIn() {
         focusedField = nil
@@ -344,25 +336,17 @@ extension LoginView {
         session.signIn(email: trimmedLink, accessKey: trimmedKey)
     }
     
-    // MARK: Helpers
-    
-    /// Validates if a string is a properly formatted GitHub profile URL.
     private func isValidGitHubURL(_ urlString: String) -> Bool {
-        // Matches https://github.com/username or github.com/username
-        // GitHub usernames can be alphanumeric with single hyphens, max 39 chars.
         let pattern = "^(https?://)?(www\\.)?github\\.com/[a-zA-Z0-9](?:[a-zA-Z0-9]|-(?=[a-zA-Z0-9])){0,38}/?$"
         guard let regex = try? NSRegularExpression(pattern: pattern, options: .caseInsensitive) else { return false }
         let range = NSRange(location: 0, length: urlString.utf16.count)
         return regex.firstMatch(in: urlString, options: [], range: range) != nil
     }
     
-    /// Validates standard GitHub Personal Access Token formats.
     private func isValidGitHubToken(_ token: String) -> Bool {
-        // Known GitHub prefixes for Classic, Fine-Grained, and other internal tokens.
         let validPrefixes = ["ghp_", "github_pat_", "gho_", "ghu_", "ghs_", "ghr_"]
         let hasValidPrefix = validPrefixes.contains(where: token.hasPrefix)
         
-        // Ensure it has a valid prefix and minimum expected length (Classic tokens are 40 chars)
         return hasValidPrefix && token.count >= 40
     }
 }
