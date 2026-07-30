@@ -6,92 +6,131 @@
 //
 
 import SwiftUI
+import Combine
+
+@MainActor
+class ContentViewModel: ObservableObject {
+    @Published var quickActions: [QuickAction] = [
+        .init(title: "Issues", imageName: "issue_icon", tint: .cyan),
+        .init(title: "Pull Requests", imageName: "pull_request_icon", tint: .mint),
+        .init(title: "Discussions", imageName: "discussion_icon", tint: .blue),
+        .init(title: "Starred", imageName: "starred_icon", tint: .indigo)
+    ]
+    
+    // Start with empty arrays; they will populate when the API loads
+    @Published var pinnedRepos: [PinnedRepo] = []
+    @Published var activities: [ActivityItem] = []
+    
+    // Keeping myWork static for now as GitHub's notifications API requires an authenticated token
+    @Published var myWork: [WorkItem] = [
+        .init(repository: "swiftlang / swift-book #473", title: "Fix function type grammar for labeled parameters", description: "You commented", time: "1d", comments: 3, type: .comment)
+    ]
+    
+    @Published var selectedTab: DockTab = .home
+    
+    // MARK: - Networking
+    
+    func refreshData(for username: String) async {
+        async let fetchedRepos = fetchRepositories(for: username)
+        async let fetchedEvents = fetchRecentActivity(for: username)
+        
+        // Wait for both network calls to finish concurrently
+        let (repos, events) = await (fetchedRepos, fetchedEvents)
+        
+        self.pinnedRepos = repos
+        self.activities = events
+    }
+    
+    private func fetchRepositories(for username: String) async -> [PinnedRepo] {
+        // Sort by updated to simulate active/pinned repos
+        guard let url = URL(string: "https://api.github.com/users/\(username)/repos?sort=updated&per_page=4") else { return [] }
+        
+        do {
+            let (data, _) = try await URLSession.shared.data(from: url)
+            let decodedRepos = try JSONDecoder().decode([GitHubRepo].self, from: data)
+            
+            return decodedRepos.map { repo in
+                PinnedRepo(
+                    name: repo.name,
+                    description: repo.description ?? "No description provided.",
+                    language: repo.language ?? "Unknown",
+                    stars: formatStars(repo.stargazers_count),
+                    isPublic: !repo.private,
+                    color: colorForLanguage(repo.language)
+                )
+            }
+        } catch {
+            print("Error fetching repos: \(error)")
+            return []
+        }
+    }
+    
+    private func fetchRecentActivity(for username: String) async -> [ActivityItem] {
+        guard let url = URL(string: "https://api.github.com/users/\(username)/events/public?per_page=4") else { return [] }
+        
+        do {
+            let (data, _) = try await URLSession.shared.data(from: url)
+            let decodedEvents = try JSONDecoder().decode([GitHubEvent].self, from: data)
+            
+            return decodedEvents.map { event in
+                let mappedType = mapEventType(event.type)
+                return ActivityItem(
+                    title: mappedType.title,
+                    subtitle: event.repo.name,
+                    timestamp: formatRelativeDate(from: event.created_at),
+                    systemImage: mappedType.icon,
+                    tint: mappedType.color
+                )
+            }
+        } catch {
+            print("Error fetching events: \(error)")
+            return []
+        }
+    }
+    
+    // MARK: - Helpers
+    
+    private func formatStars(_ count: Int) -> String {
+        if count >= 1000 {
+            return String(format: "%.1fk", Double(count) / 1000.0)
+        }
+        return "\(count)"
+    }
+    
+    private func colorForLanguage(_ language: String?) -> Color {
+        switch language?.lowercased() {
+        case "swift": return .orange
+        case "rust": return .brown
+        case "typescript", "javascript": return .yellow
+        case "python": return .blue
+        case "java": return .red
+        default: return .cyan
+        }
+    }
+    
+    private func mapEventType(_ type: String) -> (title: String, icon: String, color: Color) {
+        switch type {
+        case "PushEvent": return ("Pushed code", "arrow.up.circle.fill", .cyan)
+        case "PullRequestEvent": return ("Pull Request", "arrow.triangle.branch", .mint)
+        case "IssuesEvent": return ("Issue updated", "exclamationmark.circle", .orange)
+        case "WatchEvent": return ("Starred repository", "star.fill", .yellow)
+        case "ForkEvent": return ("Forked repository", "arrow.triangle.merge", .blue)
+        default: return ("Activity update", "bell.fill", .gray)
+        }
+    }
+    
+    private func formatRelativeDate(from isoString: String) -> String {
+        let formatter = ISO8601DateFormatter()
+        guard let date = formatter.date(from: isoString) else { return "Recently" }
+        
+        let relativeFormatter = RelativeDateTimeFormatter()
+        relativeFormatter.unitsStyle = .abbreviated
+        return relativeFormatter.localizedString(for: date, relativeTo: Date())
+    }
+}
 
 struct ContentView: View {
-    private let quickActions: [QuickAction] = [
-        .init(title: "Issues", systemImage: "exclamationmark.circle.fill", tint: .cyan),
-        .init(title: "Pull Requests", systemImage: "arrow.triangle.branch", tint: .mint),
-        .init(title: "Discussions", systemImage: "bubble.left.and.bubble.right.fill", tint: .blue),
-        .init(title: "Starred", systemImage: "star.fill", tint: .indigo)
-    ]
-    
-    private let pinnedRepos: [PinnedRepo] = [
-        .init(
-            name: "stitch-core",
-            description: "High-performance reactive UI framework for the modern web, written in Rust and TypeScript.",
-            language: "Rust",
-            stars: "1.2k",
-            isPublic: true,
-            color: .cyan
-        ),
-        .init(
-            name: "aurora-ui",
-            description: "Design system components and tokens for internal dashboard applications.",
-            language: "TypeScript",
-            stars: "48",
-            isPublic: false,
-            color: .mint
-        )
-    ]
-    
-    private let activities: [ActivityItem] = [
-        .init(
-            title: "PR #42 opened",
-            subtitle: "in stitch-core",
-            timestamp: "2 hours ago",
-            systemImage: "arrow.triangle.branch",
-            tint: .mint
-        ),
-        .init(
-            title: "Review submitted",
-            subtitle: "for aurora-ui",
-            timestamp: "5 hours ago",
-            systemImage: "checkmark",
-            tint: .cyan
-        ),
-        .init(
-            title: "Forked",
-            subtitle: "nexus-lab",
-            timestamp: "Yesterday",
-            systemImage: "arrow.triangle.merge",
-            tint: .blue
-        )
-    ]
-
-    private let myWork: [WorkItem] = [
-        .init(
-            repository: "jenkinsci / JiraTestResultReporter-plugin #311",
-            title: "Make JiraTestResultReporter global configuration exportable by JCasC",
-            description: "You received a review",
-            time: "8h",
-            comments: 2,
-            type: .review
-        ),
-        .init(
-            repository: "open-telemetry / opentelemetry-java-instrumentation #19048",
-            title: "Implement configurable metric bridge metric suppression",
-            description: "opentelemetry-pr-dashboard commented",
-            time: "10h",
-            comments: 35,
-            type: .pullRequest
-        ),
-        .init(
-            repository: "crate / crate #19823",
-            title: "Collect table statistics for foreign tables",
-            description: "crate-jenkins commented",
-            time: "15h",
-            comments: 1,
-            type: .issue
-        ),
-        .init(
-            repository: "swiftlang / swift-book #473",
-            title: "Fix function type grammar for labeled parameters",
-            description: "You commented",
-            time: "1d",
-            comments: 3,
-            type: .comment
-        )
-    ]
+    @StateObject private var viewModel = ContentViewModel()
     
     var body: some View {
         ZStack(alignment: .bottom) {
@@ -113,6 +152,10 @@ struct ContentView: View {
             bottomDock
         }
         .preferredColorScheme(.dark)
+        .task {
+            // Replace "apple" with your GitHub username
+            await viewModel.refreshData(for: "apple")
+        }
     }
     
     private var background: some View {
@@ -164,7 +207,9 @@ struct ContentView: View {
             
             Spacer()
             
-            Button(action: {}) {
+            Button(action: {
+                // Dynamic Search Action
+            }) {
                 Image(systemName: "magnifyingglass")
                     .font(.system(size: 18, weight: .semibold))
                     .foregroundStyle(Color.cyan)
@@ -190,7 +235,7 @@ struct ContentView: View {
                 GridItem(.flexible(), spacing: 12),
                 GridItem(.flexible(), spacing: 12)
             ], spacing: 12) {
-                ForEach(quickActions) { action in
+                ForEach(viewModel.quickActions) { action in
                     QuickActionCard(action: action)
                 }
             }
@@ -206,13 +251,15 @@ struct ContentView: View {
                 
                 Spacer()
                 
-                Button("VIEW ALL") {}
-                    .font(.system(size: 12, weight: .bold, design: .rounded))
-                    .foregroundStyle(Color.cyan)
+                Button("VIEW ALL") {
+                    // Dynamic View All Action
+                }
+                .font(.system(size: 12, weight: .bold, design: .rounded))
+                .foregroundStyle(Color.cyan)
             }
             
             VStack(spacing: 12) {
-                ForEach(pinnedRepos) { repo in
+                ForEach(viewModel.pinnedRepos) { repo in
                     PinnedRepoCard(repo: repo)
                 }
             }
@@ -226,7 +273,6 @@ struct ContentView: View {
                 .foregroundStyle(.white)
             
             VStack(spacing: 0) {
-                // FIX: Let the content dictate the size, and apply GlassCard as background.
                 ZStack(alignment: .topLeading) {
                     Rectangle()
                         .fill(Color.white.opacity(0.10))
@@ -235,7 +281,7 @@ struct ContentView: View {
                         .padding(.vertical, 22)
                     
                     VStack(spacing: 18) {
-                        ForEach(activities) { activity in
+                        ForEach(viewModel.activities) { activity in
                             ActivityRow(activity: activity)
                         }
                     }
@@ -254,18 +300,15 @@ struct ContentView: View {
                 .foregroundStyle(.white)
             
             VStack(spacing: 0) {
-                
-                ForEach(myWork.indices, id: \.self) { index in
+                ForEach(viewModel.myWork.indices, id: \.self) { index in
+                    WorkCard(item: viewModel.myWork[index])
                     
-                    WorkCard(item: myWork[index])
-                    
-                    if index != myWork.count - 1 {
+                    if index != viewModel.myWork.count - 1 {
                         Divider()
                             .overlay(Color.white.opacity(0.08))
                             .padding(.leading, 62)
                     }
                 }
-                
             }
             .padding(.vertical, 4)
             .background(GlassCard(cornerRadius: 20))
@@ -274,11 +317,21 @@ struct ContentView: View {
     
     private var bottomDock: some View {
         HStack(spacing: 0) {
-            DockItem(title: "Home", systemImage: "house.fill", isSelected: true, showDot: false)
-            DockItem(title: "Inbox", systemImage: "tray.fill", isSelected: false, showDot: false)
-            DockItem(title: "AI Search", systemImage: "brain.head.profile", isSelected: false, showDot: true)
-            DockItem(title: "Explore", systemImage: "safari", isSelected: false, showDot: false)
-            DockItem(title: "Repos", systemImage: "shippingbox.fill", isSelected: false, showDot: false)
+            ForEach(DockTab.allCases, id: \.self) { tab in
+                Button {
+                    withAnimation(.easeInOut(duration: 0.2)) {
+                        viewModel.selectedTab = tab
+                    }
+                } label: {
+                    DockItem(
+                        title: tab.title,
+                        systemImage: tab.icon,
+                        isSelected: viewModel.selectedTab == tab,
+                        showDot: tab.hasNotification
+                    )
+                }
+                .buttonStyle(.plain)
+            }
         }
         .padding(.vertical, 12)
         .padding(.horizontal, 14)
@@ -293,6 +346,8 @@ struct ContentView: View {
         .padding(.bottom, 12)
     }
 }
+
+// MARK: - Components
 
 private struct GlassCard: View {
     var cornerRadius: CGFloat = 20
@@ -326,7 +381,9 @@ private struct QuickActionCard: View {
     let action: QuickAction
     
     var body: some View {
-        Button(action: {}) {
+        Button(action: {
+            // Action trigger dynamic to model
+        }) {
             ZStack {
                 GlassCard(cornerRadius: 20)
                 
@@ -343,9 +400,12 @@ private struct QuickActionCard: View {
                 VStack(alignment: .leading) {
                     HStack {
                         Spacer()
-                        Image(systemName: action.systemImage)
-                            .font(.system(size: 20, weight: .semibold))
+                        Image(action.imageName)
+                            .resizable()
+                            .renderingMode(.template)
                             .foregroundStyle(action.tint)
+                            .scaledToFit()
+                            .frame(width: 26, height: 26)
                     }
                     
                     Spacer()
@@ -367,7 +427,6 @@ private struct PinnedRepoCard: View {
     let repo: PinnedRepo
     
     var body: some View {
-        // FIX: Put content in layout flow and set GlassCard as the background
         VStack(alignment: .leading, spacing: 10) {
             HStack(alignment: .top) {
                 HStack(spacing: 8) {
@@ -474,16 +533,13 @@ private struct WorkCard: View {
     
     var body: some View {
         HStack(alignment: .top, spacing: 14) {
-            
             Image(systemName: item.type.icon)
                 .font(.system(size: 28))
                 .foregroundStyle(item.type.color)
                 .frame(width: 34)
             
             VStack(alignment: .leading, spacing: 8) {
-                
                 HStack(alignment: .top) {
-                    
                     Text(item.repository)
                         .font(.system(size: 15))
                         .foregroundStyle(.gray)
@@ -506,12 +562,10 @@ private struct WorkCard: View {
             }
             
             VStack {
-                
                 RoundedRectangle(cornerRadius: 8)
                     .fill(Color.white.opacity(0.06))
                     .frame(width: 42, height: 42)
                     .overlay {
-                        
                         Text("\(item.comments)")
                             .foregroundStyle(.gray)
                             .font(.system(size: 16, weight: .bold))
@@ -563,14 +617,16 @@ private struct ScaledButtonStyle: ButtonStyle {
     }
 }
 
-private struct QuickAction: Identifiable {
+// MARK: - Models
+
+struct QuickAction: Identifiable {
     let id = UUID()
     let title: String
-    let systemImage: String
+    let imageName: String
     let tint: Color
 }
 
-private struct PinnedRepo: Identifiable {
+struct PinnedRepo: Identifiable {
     let id = UUID()
     let name: String
     let description: String
@@ -580,7 +636,7 @@ private struct PinnedRepo: Identifiable {
     let color: Color
 }
 
-private struct ActivityItem: Identifiable {
+struct ActivityItem: Identifiable {
     let id = UUID()
     let title: String
     let subtitle: String
@@ -589,7 +645,7 @@ private struct ActivityItem: Identifiable {
     let tint: Color
 }
 
-private struct WorkItem: Identifiable {
+struct WorkItem: Identifiable {
     let id = UUID()
     let repository: String
     let title: String
@@ -599,7 +655,7 @@ private struct WorkItem: Identifiable {
     let type: NotificationType
 }
 
-private enum NotificationType {
+enum NotificationType {
     case pullRequest, issue, review, comment, ciFailed, ciPassed, discussion, release
     
     var icon: String {
@@ -626,6 +682,55 @@ private enum NotificationType {
         case .discussion: return .purple
         case .release: return .pink
         }
+    }
+}
+
+enum DockTab: String, CaseIterable {
+    case home, inbox, aiSearch, explore, repos
+    
+    var title: String {
+        switch self {
+        case .home: return "Home"
+        case .inbox: return "Inbox"
+        case .aiSearch: return "AI Search"
+        case .explore: return "Explore"
+        case .repos: return "Repos"
+        }
+    }
+    
+    var icon: String {
+        switch self {
+        case .home: return "house.fill"
+        case .inbox: return "tray.fill"
+        case .aiSearch: return "brain.head.profile"
+        case .explore: return "safari"
+        case .repos: return "shippingbox.fill"
+        }
+    }
+    
+    var hasNotification: Bool {
+        self == .aiSearch
+    }
+}
+
+// MARK: - GitHub API Data Models
+
+struct GitHubRepo: Codable {
+    let name: String
+    let description: String?
+    let language: String?
+    let stargazers_count: Int
+    let `private`: Bool
+}
+
+struct GitHubEvent: Codable {
+    let id: String
+    let type: String
+    let created_at: String
+    let repo: EventRepo
+    
+    struct EventRepo: Codable {
+        let name: String
     }
 }
 
