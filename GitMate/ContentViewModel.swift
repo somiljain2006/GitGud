@@ -26,8 +26,8 @@ final class ContentViewModel: ObservableObject {
     
     private let service: GitHubService
     
-    init(service: GitHubService = GitHubService()) {
-        self.service = service
+    init(service: GitHubService? = nil) {
+        self.service = service ?? GitHubService()
     }
     
     func refreshData(for username: String, token: String? = nil) async {
