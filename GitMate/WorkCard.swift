@@ -17,7 +17,7 @@ struct WorkCard: View {
                     Image("pull_request_icon")
                         .resizable()
                         .renderingMode(.template)
-                        .foregroundStyle(item.type.color)
+                        .foregroundStyle(item.prState?.color ?? item.type.color)
                         .scaledToFit()
                         .frame(width: 28, height: 28)
                 } else {

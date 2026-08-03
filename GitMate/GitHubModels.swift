@@ -64,9 +64,10 @@ struct GitHubSearchItem: Codable {
     let updatedAt: String
     let repositoryUrl: String
     let pullRequest: PullRequestRef?
+    let draft: Bool?
     
     enum CodingKeys: String, CodingKey {
-        case title, state, comments
+        case title, state, comments, draft
         case updatedAt = "updated_at"
         case repositoryUrl = "repository_url"
         case pullRequest = "pull_request"
@@ -74,5 +75,11 @@ struct GitHubSearchItem: Codable {
 
     struct PullRequestRef: Codable {
         let url: String?
+        let mergedAt: String?
+        
+        enum CodingKeys: String, CodingKey {
+            case url
+            case mergedAt = "merged_at"
+        }
     }
 }

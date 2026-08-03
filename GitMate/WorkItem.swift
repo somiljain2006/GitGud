@@ -6,6 +6,7 @@
 //
 
 import Foundation
+import SwiftUI
 
 struct WorkItem: Identifiable {
     let id = UUID()
@@ -15,4 +16,27 @@ struct WorkItem: Identifiable {
     let time: String
     let comments: Int
     let type: NotificationType
+    var prState: PRState? = nil
+}
+
+enum PRState {
+    case open, merged, closed, draft
+    
+    var color: Color {
+        switch self {
+        case .merged: return .purple
+        case .closed: return .red
+        case .draft: return .gray
+        case .open: return .mint
+        }
+    }
+    
+    var title: String {
+        switch self {
+        case .merged: return "Merged"
+        case .closed: return "Closed"
+        case .draft: return "Draft"
+        case .open: return "Open"
+        }
+    }
 }

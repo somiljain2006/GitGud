@@ -92,13 +92,36 @@ struct GitHubService {
             let repoName = item.repositoryUrl
                 .replacingOccurrences(of: "https://api.github.com/repos/", with: "")
 
+            let prState: PRState?
+            if let pr = item.pullRequest {
+                if item.draft == true {
+                    prState = .draft
+                } else if pr.mergedAt != nil {
+                    prState = .merged
+                } else if item.state == "closed" {
+                    prState = .closed
+                } else {
+                    prState = .open
+                }
+            } else {
+                prState = nil
+            }
+
+            let descriptionText: String
+            if let state = prState {
+                descriptionText = "Pull request • \(state.title)"
+            } else {
+                descriptionText = "Issue • \(item.state.capitalized)"
+            }
+
             return WorkItem(
                 repository: repoName,
                 title: item.title,
-                description: item.pullRequest != nil ? "Pull request • \(item.state.capitalized)" : "Issue • \(item.state.capitalized)",
+                description: descriptionText,
                 time: RelativeDateFormatter.relativeString(from: item.updatedAt),
                 comments: item.comments,
-                type: item.pullRequest != nil ? .pullRequest : .issue
+                type: item.pullRequest != nil ? .pullRequest : .issue,
+                prState: prState
             )
         }
     }

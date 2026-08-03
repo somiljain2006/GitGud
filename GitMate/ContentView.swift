@@ -97,13 +97,21 @@ struct ContentView: View {
         }
         .padding(.vertical, 12)
         .padding(.horizontal, 14)
-        .background(.ultraThinMaterial.opacity(0.95))
+        .background(.ultraThinMaterial)
+        .clipShape(RoundedRectangle(cornerRadius: 28, style: .continuous))
         .overlay(
             RoundedRectangle(cornerRadius: 28, style: .continuous)
-                .stroke(.white.opacity(0.14), lineWidth: 1)
+                .stroke(
+                    LinearGradient(
+                        colors: [.white.opacity(0.4), .white.opacity(0.05)],
+                        startPoint: .topLeading,
+                        endPoint: .bottomTrailing
+                    ),
+                    lineWidth: 1
+                )
         )
-        .clipShape(RoundedRectangle(cornerRadius: 28, style: .continuous))
-        .shadow(color: Color.cyan.opacity(0.16), radius: 24, x: 0, y: 8)
+        .shadow(color: Color.black.opacity(0.3), radius: 15, x: 0, y: 10)
+        .shadow(color: Color.cyan.opacity(0.12), radius: 24, x: 0, y: 8)
         .padding(.horizontal, 18)
         .padding(.bottom, -20)
     }
