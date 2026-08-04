@@ -38,19 +38,64 @@ struct GitHubNotification: Codable {
     let id: String
     let unread: Bool
     let reason: String
-    let updated_at: String
+    let updatedAt: String
+    let lastReadAt: String?
     let subject: Subject
     let repository: Repo
+    let url: String?
+    let subscriptionUrl: String?
     
+    enum CodingKeys: String, CodingKey {
+        case id
+        case unread
+        case reason
+        case updatedAt = "updated_at"
+        case lastReadAt = "last_read_at"
+        case subject
+        case repository
+        case url
+        case subscriptionUrl = "subscription_url"
+    }
+
     struct Subject: Codable {
         let title: String
-        let url: String
+        let url: String?
+        let latestCommentUrl: String?
         let type: String
+        let state: String?
+        
+        enum CodingKeys: String, CodingKey {
+            case title
+            case url
+            case latestCommentUrl = "latest_comment_url"
+            case type
+            case state
+        }
     }
-    
+
     struct Repo: Codable {
-        let full_name: String
+        let fullName: String
+
+        enum CodingKeys: String, CodingKey {
+            case fullName = "full_name"
+        }
     }
+}
+
+struct GitHubAPIErrorResponse: Codable {
+    let message: String
+    let documentationURL: String?
+    let status: String?
+    
+    enum CodingKeys: String, CodingKey {
+        case message
+        case documentationURL = "documentation_url"
+        case status
+    }
+}
+
+struct GitHubAuthenticatedUser: Codable {
+    let login: String
 }
 
 struct GitHubSearchResponse: Codable {

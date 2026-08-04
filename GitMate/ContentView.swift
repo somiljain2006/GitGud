@@ -9,13 +9,47 @@ import SwiftUI
 
 struct ContentView: View {
     @StateObject private var viewModel = ContentViewModel()
+    @StateObject private var inboxViewModel = InboxViewModel()
     @EnvironmentObject private var session: SessionStore
     @State private var isShowingAllRepos = false
     
     var body: some View {
-        ZStack(alignment: .bottom) {
-            background
-            
+            ZStack(alignment: .bottom) {
+                background
+                
+                Group {
+                    switch viewModel.selectedTab {
+                    case .home:
+                        homeContent
+                    case .inbox:
+                        InboxView(viewModel: inboxViewModel)
+                    case .aiSearch:
+                        Text("AI Search").foregroundStyle(.white.opacity(0.5))
+                    case .explore:
+                        Text("Explore").foregroundStyle(.white.opacity(0.5))
+                    case .repos:
+                        Text("Repositories").foregroundStyle(.white.opacity(0.5))
+                    }
+                }
+                .frame(maxWidth: .infinity, maxHeight: .infinity)
+                
+                bottomDock
+            }
+            .preferredColorScheme(.dark)
+            .sheet(isPresented: $isShowingAllRepos) {
+                AllRepositoriesView(
+                    username: session.githubUsername,
+                    pinnedRepos: viewModel.pinnedRepos
+                )
+            }
+            .task {
+                let username = session.githubUsername
+                let token = session.savedAccessKey
+                await viewModel.refreshData(for: username, token: token)
+            }
+        }
+        
+        private var homeContent: some View {
             ScrollView(showsIndicators: false) {
                 VStack(alignment: .leading, spacing: 24) {
                     HeaderSection(avatarURL: viewModel.avatarURL)
@@ -30,22 +64,7 @@ struct ContentView: View {
                 .padding(.top, 8)
                 .padding(.bottom, 140)
             }
-            
-            bottomDock
         }
-        .preferredColorScheme(.dark)
-        .sheet(isPresented: $isShowingAllRepos) {
-            AllRepositoriesView(
-                username: session.githubUsername,
-                pinnedRepos: viewModel.pinnedRepos
-            )
-        }
-        .task {
-            let username = session.githubUsername
-            let token = session.savedAccessKey
-            await viewModel.refreshData(for: username, token: token)
-        }
-    }
     
     private var background: some View {
         LinearGradient(
@@ -89,7 +108,7 @@ struct ContentView: View {
                         title: tab.title,
                         systemImage: tab.icon,
                         isSelected: viewModel.selectedTab == tab,
-                        showDot: tab.hasNotification
+                        showDot: tab == .inbox ? inboxViewModel.hasUnreadNotifications : tab.hasNotification
                     )
                 }
                 .buttonStyle(.plain)
