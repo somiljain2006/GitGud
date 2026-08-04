@@ -26,7 +26,7 @@ struct ContentView: View {
                     case .aiSearch:
                         Text("AI Search").foregroundStyle(.white.opacity(0.5))
                     case .explore:
-                        Text("Explore").foregroundStyle(.white.opacity(0.5))
+                        ExploreView(viewModel: ExploreViewModel(session: session))
                     case .repos:
                         Text("Repositories").foregroundStyle(.white.opacity(0.5))
                     }
@@ -63,6 +63,11 @@ struct ContentView: View {
                 .padding(.horizontal, 20)
                 .padding(.top, 8)
                 .padding(.bottom, 140)
+            }
+            .refreshable {
+                let username = session.githubUsername
+                let token = session.savedAccessKey
+                await viewModel.refreshData(for: username, token: token)
             }
         }
     
