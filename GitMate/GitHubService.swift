@@ -142,7 +142,7 @@ struct GitHubService {
                     name: repo.name,
                     description: repo.description ?? "No description provided.",
                     language: repo.language ?? "Unknown",
-                    stars: StarFormatter.formatStars(repo.stargazers_count),
+                    stars: StarFormatter.formatStars(repo.stargazersCount),
                     isPublic: !repo.private,
                     color: LanguageColor.color(for: repo.language)
                 )

@@ -28,7 +28,7 @@ struct ContentView: View {
                     case .explore:
                         ExploreView(viewModel: ExploreViewModel(session: session))
                     case .repos:
-                        Text("Repositories").foregroundStyle(.white.opacity(0.5))
+                        RepositoriesView()
                     }
                 }
                 .frame(maxWidth: .infinity, maxHeight: .infinity)

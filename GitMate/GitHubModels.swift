@@ -19,8 +19,20 @@ struct GitHubRepo: Codable {
     let name: String
     let description: String?
     let language: String?
-    let stargazers_count: Int
+    let stargazersCount: Int
+    let forksCount: Int
     let `private`: Bool
+    let updatedAt: String
+    
+    enum CodingKeys: String, CodingKey {
+        case name
+        case description
+        case language
+        case stargazersCount = "stargazers_count"
+        case forksCount = "forks_count"
+        case `private`
+        case updatedAt = "updated_at"
+    }
 }
 
 struct GitHubEvent: Codable {
