@@ -23,6 +23,9 @@ struct GitHubGraphQLService {
                   description
                   isPrivate
                   stargazerCount
+                  owner {
+                    login
+                  }
                   primaryLanguage {
                     name
                   }
@@ -37,6 +40,8 @@ struct GitHubGraphQLService {
         request.httpMethod = "POST"
         request.addValue("Bearer \(token)", forHTTPHeaderField: "Authorization")
         request.addValue("application/json", forHTTPHeaderField: "Content-Type")
+        request.addValue("application/vnd.github+json", forHTTPHeaderField: "Accept")
+        request.addValue("GitMateApp", forHTTPHeaderField: "User-Agent")
 
         let body: [String: Any] = ["query": query]
         guard let httpBody = try? JSONSerialization.data(withJSONObject: body) else { return nil }
@@ -56,8 +61,8 @@ struct GitHubGraphQLService {
                     name: repo.name,
                     description: repo.description ?? "No description provided.",
                     language: repo.primaryLanguage?.name ?? "Unknown",
-                    stars: StarFormatter.formatStars(repo.stargazerCount),
-                    isPublic: !repo.isPrivate,
+                    stars: StarFormatter.formatStars(repo.stargazerCount ?? 0),
+                    isPublic: !(repo.isPrivate ?? false),
                     color: LanguageColor.color(for: repo.primaryLanguage?.name)
                 )
             }
@@ -99,6 +104,8 @@ struct GitHubGraphQLService {
         request.httpMethod = "POST"
         request.addValue("Bearer \(token)", forHTTPHeaderField: "Authorization")
         request.addValue("application/json", forHTTPHeaderField: "Content-Type")
+        request.addValue("application/vnd.github+json", forHTTPHeaderField: "Accept")
+        request.addValue("GitMateApp", forHTTPHeaderField: "User-Agent")
         
         let body: [String: Any] = ["query": query]
         guard let httpBody = try? JSONSerialization.data(withJSONObject: body) else { return fallback }

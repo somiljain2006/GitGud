@@ -10,6 +10,7 @@ import Combine
 
 struct RepositoryItem: Identifiable {
     let id = UUID()
+    let owner: String
     let name: String
     let description: String
     let language: String
@@ -20,10 +21,12 @@ struct RepositoryItem: Identifiable {
     let updatedAgo: String
     let isPrivate: Bool
     let iconName: String
+    var isStarred: Bool
 }
 
 struct GitHubRepoDetailed: Codable {
     let name: String
+    let owner: RepoOwner
     let description: String?
     let language: String?
     let languagesUrl: String
@@ -33,7 +36,7 @@ struct GitHubRepoDetailed: Codable {
     let updatedAt: String
     
     enum CodingKeys: String, CodingKey {
-        case name, description, language, `private`
+        case name, owner, description, language, `private`
         case languagesUrl = "languages_url"
         case stargazersCount = "stargazers_count"
         case forksCount = "forks_count"
@@ -62,6 +65,9 @@ class RepositoriesViewModel: ObservableObject {
         
         isLoading = true
         errorMessage = nil
+        
+        async let starredRepositoriesTask = fetchStarredRepositoryNames(token: token)
+        let starredRepositories = await starredRepositoriesTask
         
         let urlString = "https://api.github.com/users/\(username)/repos?sort=updated&per_page=100"
         guard let url = URL(string: urlString) else {
@@ -98,12 +104,14 @@ class RepositoriesViewModel: ObservableObject {
                         }
                         
                         let isReadmeRepo = repo.name.lowercased() == username.lowercased() || repo.name.lowercased().contains("readme")
-
                         let rawLang = finalLang ?? (isReadmeRepo ? "Md" : "Unknown")
-
                         let lang = rawLang.trimmingCharacters(in: .whitespacesAndNewlines)
 
+                        let repositoryKey = "\(username.lowercased())/\(repo.name.lowercased())"
+                        let isStarred = starredRepositories.contains(repositoryKey)
+
                         let item = await RepositoryItem(
+                            owner: username,
                             name: repo.name,
                             description: repo.description ?? "No description provided.",
                             language: lang,
@@ -113,7 +121,8 @@ class RepositoriesViewModel: ObservableObject {
                             forks: self.formatCount(repo.forksCount),
                             updatedAgo: self.formatRelativeDate(repo.updatedAt),
                             isPrivate: repo.private,
-                            iconName: repo.private ? "lock.fill" : "book.closed"
+                            iconName: repo.private ? "lock.fill" : "book.closed",
+                            isStarred: isStarred
                         )
                         return (index, item)
                     }
@@ -143,6 +152,105 @@ class RepositoriesViewModel: ObservableObject {
         }
         
         isLoading = false
+    }
+    
+    private func fetchStarredRepositoryNames(token: String?) async -> Set<String> {
+        guard let token, !token.isEmpty else {
+            return []
+        }
+
+        guard let url = URL(string: "https://api.github.com/user/starred?per_page=100") else {
+            return []
+        }
+
+        var request = URLRequest(url: url)
+        request.httpMethod = "GET"
+        request.addValue("Bearer \(token)", forHTTPHeaderField: "Authorization")
+        request.addValue("application/vnd.github+json", forHTTPHeaderField: "Accept")
+        request.addValue("GitMateApp", forHTTPHeaderField: "User-Agent")
+
+        do {
+            let (data, response) = try await URLSession.shared.data(for: request)
+
+            guard let httpResponse = response as? HTTPURLResponse,
+                  httpResponse.statusCode == 200 else {
+                return []
+            }
+
+            let repos = try JSONDecoder().decode([GitHubRepoDetailed].self, from: data)
+
+            return Set(repos.map {
+                "\($0.owner.login.lowercased())/\($0.name.lowercased())"
+            })
+
+        } catch {
+            print("Failed to fetch starred repositories: \(error)")
+            return []
+        }
+    }
+
+    func toggleStar(owner: String, repo: String, isStarred: Bool, token: String?) async -> Bool {
+        guard let token, !token.isEmpty else {
+            return false
+        }
+
+        guard let url = URL(string: "https://api.github.com/user/starred/\(owner)/\(repo)") else {
+            return false
+        }
+
+        var request = URLRequest(url: url)
+        request.httpMethod = isStarred ? "PUT" : "DELETE"
+        request.addValue("Bearer \(token)", forHTTPHeaderField: "Authorization")
+        request.addValue("application/vnd.github+json", forHTTPHeaderField: "Accept")
+        request.addValue("GitMateApp", forHTTPHeaderField: "User-Agent")
+
+        do {
+            let (_, response) = try await URLSession.shared.data(for: request)
+
+            guard let httpResponse = response as? HTTPURLResponse else {
+                return false
+            }
+
+            return httpResponse.statusCode == 204
+
+        } catch {
+            print("Failed to toggle star: \(error)")
+            return false
+        }
+    }
+
+    func deleteRepository(owner: String, repo: String, token: String?) async -> Bool {
+        guard let token, !token.isEmpty else {
+            return false
+        }
+
+        guard let url = URL(string: "https://api.github.com/repos/\(owner)/\(repo)") else {
+            return false
+        }
+
+        var request = URLRequest(url: url)
+        request.httpMethod = "DELETE"
+        request.addValue("Bearer \(token)", forHTTPHeaderField: "Authorization")
+        request.addValue("application/vnd.github+json", forHTTPHeaderField: "Accept")
+        request.addValue("GitMateApp", forHTTPHeaderField: "User-Agent")
+
+        do {
+            let (_, response) = try await URLSession.shared.data(for: request)
+
+            guard let httpResponse = response as? HTTPURLResponse else {
+                return false
+            }
+
+            return (200...299).contains(httpResponse.statusCode)
+
+        } catch {
+            print("Failed to delete repository: \(error)")
+            return false
+        }
+    }
+
+    func removeRepository(_ repo: RepositoryItem) {
+        allRepositories.removeAll { $0.id == repo.id }
     }
     
     func getLogoAssetIdentifier(_ language: String) -> String {
@@ -308,7 +416,42 @@ struct RepositoriesView: View {
                     
                     LazyVStack(spacing: 16) {
                         ForEach(viewModel.filteredRepositories) { repo in
-                            RepositoryCardView(repo: repo)
+                            RepositoryCardView(
+                                repo: repo,
+                                onStar: { shouldStar in
+                                    let success = await viewModel.toggleStar(
+                                        owner: repo.owner,
+                                        repo: repo.name,
+                                        isStarred: shouldStar,
+                                        token: sessionStore.savedAccessKey
+                                    )
+
+                                    if success {
+                                        await MainActor.run {
+                                            if let index = viewModel.allRepositories.firstIndex(where: { $0.id == repo.id }) {
+                                                viewModel.allRepositories[index].isStarred = shouldStar
+                                            }
+                                        }
+                                    }
+
+                                    return success
+                                },
+                                onDelete: {
+                                    let success = await viewModel.deleteRepository(
+                                        owner: repo.owner,
+                                        repo: repo.name,
+                                        token: sessionStore.savedAccessKey
+                                    )
+
+                                    if success {
+                                        await MainActor.run {
+                                            viewModel.removeRepository(repo)
+                                        }
+                                    }
+
+                                    return success
+                                }
+                            )
                         }
                     }
                     .padding(.horizontal, 20)
@@ -333,6 +476,10 @@ struct RepositoriesView: View {
 
 struct RepositoryCardView: View {
     let repo: RepositoryItem
+    let onStar: (Bool) async -> Bool
+    let onDelete: () async -> Bool
+
+    @State private var showDeleteConfirmation = false
     
     var body: some View {
         VStack(alignment: .leading, spacing: 16) {
@@ -348,13 +495,49 @@ struct RepositoryCardView: View {
                 
                 Spacer()
                 
-                Button {
-                  
+                Menu {
+                    Button {
+                        Task {
+                            _ = await onStar(!repo.isStarred)
+                        }
+                    } label: {
+                        Label(
+                            repo.isStarred ? "Unstar Repository" : "Star Repository",
+                            systemImage: repo.isStarred ? "star.slash" : "star"
+                        )
+                    }
+
+                    Divider()
+
+                    Button(role: .destructive) {
+                        showDeleteConfirmation = true
+                    } label: {
+                        Label(
+                            "Delete Repository",
+                            systemImage: "trash"
+                        )
+                    }
+
                 } label: {
                     Image(systemName: "ellipsis")
-                        .rotationEffect(.degrees(90))
-                        .font(.system(size: 18))
+                        .font(.system(size: 18, weight: .semibold))
                         .foregroundStyle(.white.opacity(0.7))
+                        .rotationEffect(.degrees(90))
+                }
+                .confirmationDialog(
+                    "Delete \(repo.name)?",
+                    isPresented: $showDeleteConfirmation,
+                    titleVisibility: .visible
+                ) {
+                    Button("Delete Repository", role: .destructive) {
+                        Task {
+                            _ = await onDelete()
+                        }
+                    }
+
+                    Button("Cancel", role: .cancel) {}
+                } message: {
+                    Text("This action permanently deletes the repository from GitHub and cannot be undone.")
                 }
             }
             
@@ -376,15 +559,15 @@ struct RepositoryCardView: View {
                 }
                 
                 HStack(spacing: 4) {
-                    Image(systemName: "star.fill")
+                    Image(systemName: repo.isStarred ? "star.fill" : "star")
                         .font(.system(size: 12))
                     Text(repo.stars)
                         .font(.system(size: 14, weight: .medium, design: .monospaced))
                 }
-                .foregroundStyle(.white.opacity(0.7))
+                .foregroundStyle(repo.isStarred ? .yellow : .white.opacity(0.7))
                 
                 HStack(spacing: 4) {
-                    Image(systemName: "arrow.y.branch")
+                    Image(systemName: "arrow.triangle.branch")
                         .font(.system(size: 13))
                     Text(repo.forks)
                         .font(.system(size: 14, weight: .medium, design: .monospaced))

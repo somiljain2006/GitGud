@@ -25,12 +25,17 @@ struct GraphQLPinnedResponse: Codable {
     struct GraphQLRepoNode: Codable {
         let name: String
         let description: String?
-        let isPrivate: Bool
-        let stargazerCount: Int
+        let isPrivate: Bool?
+        let stargazerCount: Int?
         let primaryLanguage: LanguageNode?
+        let owner: OwnerNode?
 
         struct LanguageNode: Codable {
             let name: String
+        }
+
+        struct OwnerNode: Codable {
+            let login: String
         }
     }
 }
