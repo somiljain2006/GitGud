@@ -12,65 +12,87 @@ struct ContentView: View {
     @StateObject private var inboxViewModel = InboxViewModel()
     @EnvironmentObject private var session: SessionStore
     @State private var isShowingAllRepos = false
-    
+    @State private var visitedTabs: Set<DockTab> = [.home]
+    @State private var exploreViewModel: ExploreViewModel?
+
     var body: some View {
-            ZStack(alignment: .bottom) {
-                background
-                
-                Group {
-                    switch viewModel.selectedTab {
-                    case .home:
-                        homeContent
-                    case .inbox:
-                        InboxView(viewModel: inboxViewModel)
-                    case .aiSearch:
-                        Text("AI Search").foregroundStyle(.white.opacity(0.5))
-                    case .explore:
-                        ExploreView(viewModel: ExploreViewModel(session: session))
-                    case .repos:
-                        RepositoriesView()
+        ZStack(alignment: .bottom) {
+            background
+
+            ZStack {
+                ForEach(DockTab.allCases, id: \.self) { tab in
+                    if visitedTabs.contains(tab) {
+                        tabContent(for: tab)
+                            .frame(maxWidth: .infinity, maxHeight: .infinity)
+                            .opacity(viewModel.selectedTab == tab ? 1 : 0)
+                            .allowsHitTesting(viewModel.selectedTab == tab)
                     }
                 }
-                .frame(maxWidth: .infinity, maxHeight: .infinity)
-                
-                bottomDock
             }
-            .preferredColorScheme(.dark)
-            .sheet(isPresented: $isShowingAllRepos) {
-                AllRepositoriesView(
-                    username: session.githubUsername,
-                    pinnedRepos: viewModel.pinnedRepos
-                )
-            }
-            .task {
-                let username = session.githubUsername
-                let token = session.savedAccessKey
-                await viewModel.refreshData(for: username, token: token)
+
+            bottomDock
+        }
+        .preferredColorScheme(.dark)
+        .sheet(isPresented: $isShowingAllRepos) {
+            AllRepositoriesView(
+                username: session.githubUsername,
+                pinnedRepos: viewModel.pinnedRepos
+            )
+        }
+        .task {
+            let username = session.githubUsername
+            let token = session.savedAccessKey
+            await viewModel.refreshData(for: username, token: token)
+
+            if exploreViewModel == nil {
+                exploreViewModel = ExploreViewModel(session: session)
             }
         }
-        
-        private var homeContent: some View {
-            ScrollView(showsIndicators: false) {
-                VStack(alignment: .leading, spacing: 24) {
-                    HeaderSection(avatarURL: viewModel.avatarURL)
-                    QuickActionsSection(actions: viewModel.quickActions)
-                    PinnedRepositoriesSection(repos: viewModel.pinnedRepos) {
-                        isShowingAllRepos = true
-                    }
-                    RecentActivitySection(activities: viewModel.activities)
-                    MyWorkSection(items: viewModel.myWork)
+    }
+
+    @ViewBuilder
+    private func tabContent(for tab: DockTab) -> some View {
+        switch tab {
+        case .home:
+            homeContent
+        case .inbox:
+            InboxView(viewModel: inboxViewModel)
+        case .aiSearch:
+            Text("AI Search").foregroundStyle(.white.opacity(0.5))
+        case .explore:
+            if let exploreViewModel {
+                ExploreView(viewModel: exploreViewModel)
+            } else {
+                ProgressView()
+                    .tint(.cyan)
+            }
+        case .repos:
+            RepositoriesView()
+        }
+    }
+
+    private var homeContent: some View {
+        ScrollView(showsIndicators: false) {
+            VStack(alignment: .leading, spacing: 24) {
+                HeaderSection(avatarURL: viewModel.avatarURL)
+                QuickActionsSection(actions: viewModel.quickActions)
+                PinnedRepositoriesSection(repos: viewModel.pinnedRepos) {
+                    isShowingAllRepos = true
                 }
-                .padding(.horizontal, 20)
-                .padding(.top, 8)
-                .padding(.bottom, 140)
+                RecentActivitySection(activities: viewModel.activities)
+                MyWorkSection(items: viewModel.myWork)
             }
-            .refreshable {
-                let username = session.githubUsername
-                let token = session.savedAccessKey
-                await viewModel.refreshData(for: username, token: token)
-            }
+            .padding(.horizontal, 20)
+            .padding(.top, 8)
+            .padding(.bottom, 140)
         }
-    
+        .refreshable {
+            let username = session.githubUsername
+            let token = session.savedAccessKey
+            await viewModel.refreshData(for: username, token: token)
+        }
+    }
+
     private var background: some View {
         LinearGradient(
             colors: [
@@ -89,7 +111,7 @@ struct ContentView: View {
                     startRadius: 20,
                     endRadius: 320
                 )
-                
+
                 RadialGradient(
                     colors: [Color.blue.opacity(0.14), .clear],
                     center: .bottomTrailing,
@@ -100,12 +122,13 @@ struct ContentView: View {
         )
         .ignoresSafeArea()
     }
-    
+
     private var bottomDock: some View {
         HStack(spacing: 0) {
             ForEach(DockTab.allCases, id: \.self) { tab in
                 Button {
                     withAnimation(.easeInOut(duration: 0.2)) {
+                        visitedTabs.insert(tab)
                         viewModel.selectedTab = tab
                     }
                 } label: {

@@ -576,7 +576,9 @@ struct ExploreView: View {
             await viewModel.fetchData()
         }
         .task {
-            await viewModel.fetchData()
+            if viewModel.trendingRepos.isEmpty && viewModel.exploreActivities.isEmpty {
+                await viewModel.fetchData()
+            }
         }
     }
 }

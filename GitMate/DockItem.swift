@@ -19,7 +19,8 @@ struct DockItem: View {
                 Image(systemName: systemImage)
                     .font(.system(size: 18, weight: .semibold))
                     .foregroundStyle(isSelected ? Color.cyan : Color.white.opacity(0.65))
-                
+                    .symbolRenderingMode(.hierarchical)
+
                 if showDot {
                     Circle()
                         .fill(Color.cyan)
@@ -34,6 +35,34 @@ struct DockItem: View {
                 .foregroundStyle(isSelected ? Color.cyan : Color.white.opacity(0.65))
         }
         .frame(maxWidth: .infinity)
-        .padding(.vertical, 2)
+        .padding(.vertical, 8)
+        .background {
+            if isSelected {
+                RoundedRectangle(cornerRadius: 16, style: .continuous)
+                    .fill(.ultraThinMaterial)
+                    .overlay(
+                        RoundedRectangle(cornerRadius: 16, style: .continuous)
+                            .fill(Color.cyan.opacity(0.14))
+                    )
+                    .overlay(
+                        RoundedRectangle(cornerRadius: 16, style: .continuous)
+                            .stroke(
+                                LinearGradient(
+                                    colors: [
+                                        Color.white.opacity(0.35),
+                                        Color.white.opacity(0.08),
+                                        Color.clear
+                                    ],
+                                    startPoint: .topLeading,
+                                    endPoint: .bottomTrailing
+                                ),
+                                lineWidth: 1
+                            )
+                    )
+                    .shadow(color: .cyan.opacity(0.25), radius: 10, y: 4)
+                    .transition(.scale(scale: 0.85).combined(with: .opacity))
+            }
+        }
+        .animation(.spring(response: 0.35, dampingFraction: 0.75), value: isSelected)
     }
 }
