@@ -70,6 +70,26 @@ struct ContentView: View {
                 .preferredColorScheme(.dark)
             }
         }
+        .sheet(isPresented: $viewModel.showingMyIssues) {
+            MyIssuesView(
+                issues: viewModel.myIssues
+            )
+        }
+        .sheet(isPresented: $viewModel.showingMyPullRequests) {
+            MyPullRequestsView(
+                pullRequests: viewModel.myPullRequests
+            )
+        }
+        .sheet(isPresented: $viewModel.showingMyDiscussions) {
+            MyDiscussionsView(
+                discussions: viewModel.myDiscussions
+            )
+        }
+        .sheet(isPresented: $viewModel.showingStarredRepositories) {
+            StarredRepositoriesView(
+                repositories: viewModel.starredRepositories
+            )
+        }
         .task {
             let username = session.githubUsername
             let token = session.savedAccessKey
@@ -109,7 +129,26 @@ struct ContentView: View {
                     .onTapGesture {
                         showingReadme = true
                     }
-                QuickActionsSection(actions: viewModel.quickActions)
+                QuickActionsSection(
+                    actions: viewModel.quickActions
+                ) { action in
+                    switch action.title {
+                    case "Issues":
+                        viewModel.showingMyIssues = true
+
+                    case "Pull Requests":
+                        viewModel.showingMyPullRequests = true
+
+                    case "Discussions":
+                        viewModel.showingMyDiscussions = true
+
+                    case "Starred":
+                        viewModel.showingStarredRepositories = true
+
+                    default:
+                        break
+                    }
+                }
                 PinnedRepositoriesSection(repos: viewModel.pinnedRepos) {
                     isShowingAllRepos = true
                 }

@@ -9,19 +9,31 @@ import SwiftUI
 
 struct QuickActionsSection: View {
     let actions: [QuickAction]
-    
+    let onActionTap: (QuickAction) -> Void
+
     var body: some View {
         VStack(alignment: .leading, spacing: 14) {
             Text("Quick Actions")
-                .font(.system(size: 24, weight: .semibold, design: .rounded))
+                .font(
+                    .system(
+                        size: 24,
+                        weight: .semibold,
+                        design: .rounded
+                    )
+                )
                 .foregroundStyle(.white)
-            
-            LazyVGrid(columns: [
-                GridItem(.flexible(), spacing: 12),
-                GridItem(.flexible(), spacing: 12)
-            ], spacing: 12) {
+
+            LazyVGrid(
+                columns: [
+                    GridItem(.flexible(), spacing: 12),
+                    GridItem(.flexible(), spacing: 12)
+                ],
+                spacing: 12
+            ) {
                 ForEach(actions) { action in
-                    QuickActionCard(action: action)
+                    QuickActionCard(action: action) {
+                        onActionTap(action)
+                    }
                 }
             }
         }

@@ -182,6 +182,40 @@ struct GitHubService {
         }
     }
     
+    func fetchMyIssues(
+        for username: String,
+        token: String?
+    ) async -> [MyIssue] {
+        return await graphQLService.fetchMyIssues(for: username, token: token)
+    }
+    
+    func fetchMyPullRequests(
+        for username: String,
+        token: String?
+    ) async -> [MyPullRequest] {
+        return await graphQLService.fetchMyPullRequests(for: username, token: token)
+    }
+    
+    func fetchMyDiscussions(
+        for username: String,
+        token: String?
+    ) async -> [MyDiscussion] {
+        return await graphQLService.fetchMyDiscussions(
+            for: username,
+            token: token
+        )
+    }
+    
+    func fetchStarredRepositories(
+        for username: String,
+        token: String?
+    ) async -> [StarredRepository] {
+        return await graphQLService.fetchStarredRepositories(
+            for: username,
+            token: token
+        )
+    }
+    
     private func fetchRecentReposREST(for username: String) async -> [PinnedRepo] {
         guard let url = URL(string: "https://api.github.com/users/\(username)/repos?sort=updated&per_page=4") else { return [] }
         
@@ -249,6 +283,42 @@ struct GitHubService {
         case "WatchEvent": return ("Starred repository", "star.fill", .yellow)
         case "ForkEvent": return ("Forked repository", "arrow.triangle.merge", .blue)
         default: return ("Activity update", "bell.fill", .gray)
+        }
+    }
+}
+
+struct GitHubIssueSearchResponse: Codable {
+    let items: [GitHubIssueSearchItem]
+}
+
+struct GitHubIssueSearchItem: Codable {
+    let id: Int
+    let number: Int
+    let title: String
+    let state: String
+    let body: String?
+    let htmlURL: String
+    let repository: Repository
+    let createdAt: String
+    let updatedAt: String
+
+    enum CodingKeys: String, CodingKey {
+        case id
+        case number
+        case title
+        case state
+        case body
+        case htmlURL = "html_url"
+        case repository
+        case createdAt = "created_at"
+        case updatedAt = "updated_at"
+    }
+
+    struct Repository: Codable {
+        let fullName: String
+
+        enum CodingKeys: String, CodingKey {
+            case fullName = "full_name"
         }
     }
 }
