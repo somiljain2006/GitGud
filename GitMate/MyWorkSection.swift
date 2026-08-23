@@ -9,6 +9,8 @@ import SwiftUI
 
 struct MyWorkSection: View {
     let items: [WorkItem]
+    @EnvironmentObject private var session: SessionStore
+    @State private var selectedPR: PullRequestReference?
     
     var body: some View {
         VStack(alignment: .leading, spacing: 14) {
@@ -18,7 +20,18 @@ struct MyWorkSection: View {
             
             VStack(spacing: 0) {
                 ForEach(items.indices, id: \.self) { index in
-                    WorkCard(item: items[index])
+                    let item = items[index]
+                    
+                    if item.type == .pullRequest, let number = item.pullRequestNumber, let owner = item.owner, let repo = item.repo {
+                        Button {
+                            selectedPR = PullRequestReference(owner: owner, repository: repo, number: number)
+                        } label: {
+                            WorkCard(item: item)
+                        }
+                        .buttonStyle(.plain)
+                    } else {
+                        WorkCard(item: item)
+                    }
                     
                     if index != items.count - 1 {
                         Divider()
@@ -29,6 +42,12 @@ struct MyWorkSection: View {
             }
             .padding(.vertical, 4)
             .background(GlassCard(cornerRadius: 20))
+        }
+        .sheet(item: $selectedPR) { ref in
+            NavigationStack {
+                PullRequestDetailView(reference: ref, token: session.savedAccessKey)
+            }
+            .preferredColorScheme(.dark)
         }
     }
 }

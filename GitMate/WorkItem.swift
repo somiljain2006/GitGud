@@ -17,6 +17,9 @@ struct WorkItem: Identifiable {
     let comments: Int
     let type: NotificationType
     var prState: PRState? = nil
+    var pullRequestNumber: Int? = nil
+    var owner: String? = nil
+    var repo: String? = nil
 }
 
 enum PRState {

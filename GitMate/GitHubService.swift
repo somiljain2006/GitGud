@@ -114,6 +114,10 @@ struct GitHubService {
                 descriptionText = "Issue • \(item.state.capitalized)"
             }
 
+            let parts = repoName.split(separator: "/")
+            let ownerStr = !parts.isEmpty ? String(parts[0]) : nil
+            let repoStr = parts.count > 1 ? String(parts[1]) : nil
+
             return WorkItem(
                 repository: repoName,
                 title: item.title,
@@ -121,7 +125,10 @@ struct GitHubService {
                 time: RelativeDateFormatter.relativeString(from: item.updatedAt),
                 comments: item.comments,
                 type: item.pullRequest != nil ? .pullRequest : .issue,
-                prState: prState
+                prState: prState,
+                pullRequestNumber: item.pullRequest != nil ? item.number : nil,
+                owner: ownerStr,
+                repo: repoStr
             )
         }
     }
@@ -214,6 +221,58 @@ struct GitHubService {
             for: username,
             token: token
         )
+    }
+    
+    func fetchPullRequestDetail(
+        owner: String,
+        repo: String,
+        number: Int,
+        token: String?
+    ) async -> PullRequestDetail? {
+        guard let url = URL(string: "https://api.github.com/repos/\(owner)/\(repo)/pulls/\(number)") else { return nil }
+        
+        var request = URLRequest(url: url)
+        request.httpMethod = "GET"
+        if let token = token, !token.isEmpty {
+            request.addValue("Bearer \(token)", forHTTPHeaderField: "Authorization")
+        }
+        request.addValue("application/vnd.github+json", forHTTPHeaderField: "Accept")
+        request.addValue("GitGudApp", forHTTPHeaderField: "User-Agent")
+        
+        do {
+            let (data, response) = try await URLSession.shared.data(for: request)
+            guard let httpResponse = response as? HTTPURLResponse, httpResponse.statusCode == 200 else { return nil }
+            return try JSONDecoder().decode(PullRequestDetail.self, from: data)
+        } catch {
+            print("Error fetching PR detail: \(error)")
+            return nil
+        }
+    }
+    
+    func fetchPullRequestFiles(
+        owner: String,
+        repo: String,
+        number: Int,
+        token: String?
+    ) async -> [PullRequestFile] {
+        guard let url = URL(string: "https://api.github.com/repos/\(owner)/\(repo)/pulls/\(number)/files") else { return [] }
+        
+        var request = URLRequest(url: url)
+        request.httpMethod = "GET"
+        if let token = token, !token.isEmpty {
+            request.addValue("Bearer \(token)", forHTTPHeaderField: "Authorization")
+        }
+        request.addValue("application/vnd.github+json", forHTTPHeaderField: "Accept")
+        request.addValue("GitGudApp", forHTTPHeaderField: "User-Agent")
+        
+        do {
+            let (data, response) = try await URLSession.shared.data(for: request)
+            guard let httpResponse = response as? HTTPURLResponse, httpResponse.statusCode == 200 else { return [] }
+            return try JSONDecoder().decode([PullRequestFile].self, from: data)
+        } catch {
+            print("Error fetching PR files: \(error)")
+            return []
+        }
     }
     
     private func fetchRecentReposREST(for username: String) async -> [PinnedRepo] {

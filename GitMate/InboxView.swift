@@ -12,6 +12,7 @@ struct InboxView: View {
     @EnvironmentObject private var session: SessionStore
     
     @State private var selectedFilter: InboxFilter = .all
+    @State private var selectedPR: PullRequestReference?
     
     private var filteredNotifications: [InboxNotification] {
         switch selectedFilter {
@@ -113,7 +114,16 @@ struct InboxView: View {
                 } else {
                     VStack(spacing: 16) {
                         ForEach(filteredNotifications) { notification in
-                            InboxCardView(notification: notification)
+                            if notification.kind.isPullRequest, let owner = notification.owner, let number = notification.prNumber {
+                                Button {
+                                    selectedPR = PullRequestReference(owner: owner, repository: notification.repo, number: number)
+                                } label: {
+                                    InboxCardView(notification: notification)
+                                }
+                                .buttonStyle(.plain)
+                            } else {
+                                InboxCardView(notification: notification)
+                            }
                         }
                     }
                     .padding(.horizontal, 20)
@@ -126,6 +136,12 @@ struct InboxView: View {
         }
         .task(id: session.savedAccessKey) {
             await viewModel.fetchNotifications(token: session.savedAccessKey)
+        }
+        .sheet(item: $selectedPR) { ref in
+            NavigationStack {
+                PullRequestDetailView(reference: ref, token: session.savedAccessKey)
+            }
+            .preferredColorScheme(.dark)
         }
     }
 }
@@ -260,7 +276,16 @@ final class InboxViewModel: ObservableObject {
                             relativeFormatter.unitsStyle = .abbreviated
                             let timeString = relativeFormatter.localizedString(for: date, relativeTo: Date())
                             
-                            let childRepoName = String(apiNotif.repository.fullName.split(separator: "/").last ?? "")
+                            let parts = apiNotif.repository.fullName.split(separator: "/")
+                            let owner = !parts.isEmpty ? String(parts[0]) : nil
+                            let childRepoName = parts.count > 1 ? String(parts[1]) : ""
+                            
+                            var prNumber: Int? = nil
+                            if await kind.isPullRequest, let urlStr = apiNotif.subject.url, let url = URL(string: urlStr) {
+                                if let numStr = url.lastPathComponent.components(separatedBy: "?").first, let num = Int(numStr) {
+                                    prNumber = num
+                                }
+                            }
                             
                             let notification = InboxNotification(
                                 id: apiNotif.id,
@@ -268,7 +293,9 @@ final class InboxViewModel: ObservableObject {
                                 title: apiNotif.subject.title,
                                 time: timeString,
                                 repo: childRepoName,
-                                isUnread: apiNotif.unread
+                                isUnread: apiNotif.unread,
+                                owner: owner,
+                                prNumber: prNumber
                             )
                             return (index, notification)
                         }
@@ -539,6 +566,8 @@ struct InboxNotification: Identifiable {
     let time: String
     let repo: String
     var isUnread: Bool
+    let owner: String?
+    let prNumber: Int?
 }
 
 struct InboxCardView: View {

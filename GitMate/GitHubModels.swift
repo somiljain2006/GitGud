@@ -122,9 +122,10 @@ struct GitHubSearchItem: Codable {
     let repositoryUrl: String
     let pullRequest: PullRequestRef?
     let draft: Bool?
+    let number: Int
     
     enum CodingKeys: String, CodingKey {
-        case title, state, comments, draft
+        case title, state, comments, draft, number
         case updatedAt = "updated_at"
         case repositoryUrl = "repository_url"
         case pullRequest = "pull_request"
@@ -139,4 +140,75 @@ struct GitHubSearchItem: Codable {
             case mergedAt = "merged_at"
         }
     }
+}
+
+struct PullRequestDetail: Codable, Identifiable {
+    let id: Int
+    let number: Int
+    let title: String
+    let body: String?
+    let state: String
+    let draft: Bool?
+    let user: GitHubUser
+    let createdAt: String
+    let updatedAt: String
+    let mergedAt: String?
+    let closedAt: String?
+    let additions: Int
+    let deletions: Int
+    let changedFiles: Int
+    let commits: Int
+    let comments: Int
+    let reviewComments: Int
+    let base: PRBaseHead
+    let htmlUrl: String
+
+    enum CodingKeys: String, CodingKey {
+        case id, number, title, body, state, draft, user, additions, deletions, commits, comments
+        case createdAt = "created_at"
+        case updatedAt = "updated_at"
+        case mergedAt = "merged_at"
+        case closedAt = "closed_at"
+        case changedFiles = "changed_files"
+        case reviewComments = "review_comments"
+        case base
+        case htmlUrl = "html_url"
+    }
+}
+
+struct GitHubUser: Codable {
+    let login: String
+    let avatarUrl: String
+    
+    enum CodingKeys: String, CodingKey {
+        case login
+        case avatarUrl = "avatar_url"
+    }
+}
+
+struct PRBaseHead: Codable {
+    let repo: PRRepo?
+}
+
+struct PRRepo: Codable {
+    let name: String
+    let owner: GitHubUser
+}
+
+struct PullRequestFile: Codable, Identifiable {
+    let filename: String
+    let status: String
+    let additions: Int
+    let deletions: Int
+    let changes: Int
+    let patch: String?
+    
+    var id: String { filename }
+}
+
+struct PullRequestReference: Identifiable {
+    var id: String { "\(owner)/\(repository)/\(number)" }
+    let owner: String
+    let repository: String
+    let number: Int
 }
