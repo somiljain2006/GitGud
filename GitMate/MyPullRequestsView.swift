@@ -542,10 +542,7 @@ struct PullRequestFileEditorView: View {
     }
 
     private var editorBody: some View {
-        TextEditor(text: $editedText)
-            .font(.system(size: 13, design: .monospaced))
-            .foregroundStyle(.white)
-            .scrollContentBackground(.hidden)
+        MultiLanguageCodeEditor(text: $editedText, filePath: filePath)
             .background(Color(red: 0.05, green: 0.09, blue: 0.12))
             .padding(.horizontal, 12)
             .padding(.bottom, 8)

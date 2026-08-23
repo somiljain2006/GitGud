@@ -6,6 +6,10 @@
 	objectVersion = 77;
 	objects = {
 
+/* Begin PBXBuildFile section */
+		08E02BE3303B539500D22A9D /* Highlightr in Frameworks */ = {isa = PBXBuildFile; productRef = 08E02BE2303B539500D22A9D /* Highlightr */; };
+/* End PBXBuildFile section */
+
 /* Begin PBXFileReference section */
 		08E90A193004DBD5008D6478 /* GitMate.app */ = {isa = PBXFileReference; explicitFileType = wrapper.application; includeInIndex = 0; path = GitMate.app; sourceTree = BUILT_PRODUCTS_DIR; };
 /* End PBXFileReference section */
@@ -23,6 +27,7 @@
 			isa = PBXFrameworksBuildPhase;
 			buildActionMask = 2147483647;
 			files = (
+				08E02BE3303B539500D22A9D /* Highlightr in Frameworks */,
 			);
 			runOnlyForDeploymentPostprocessing = 0;
 		};
@@ -66,6 +71,7 @@
 			);
 			name = GitMate;
 			packageProductDependencies = (
+				08E02BE2303B539500D22A9D /* Highlightr */,
 			);
 			productName = GitMate;
 			productReference = 08E90A193004DBD5008D6478 /* GitMate.app */;
@@ -95,6 +101,9 @@
 			);
 			mainGroup = 08E90A103004DBD5008D6478;
 			minimizedProjectReferenceProxies = 1;
+			packageReferences = (
+				08E02BE1303B539500D22A9D /* XCRemoteSwiftPackageReference "Highlightr" */,
+			);
 			preferredProjectObjectVersion = 77;
 			productRefGroup = 08E90A1A3004DBD5008D6478 /* Products */;
 			projectDirPath = "";
@@ -356,6 +365,25 @@
 			defaultConfigurationName = Release;
 		};
 /* End XCConfigurationList section */
+
+/* Begin XCRemoteSwiftPackageReference section */
+		08E02BE1303B539500D22A9D /* XCRemoteSwiftPackageReference "Highlightr" */ = {
+			isa = XCRemoteSwiftPackageReference;
+			repositoryURL = "https://github.com/raspu/Highlightr.git";
+			requirement = {
+				kind = upToNextMajorVersion;
+				minimumVersion = 2.3.0;
+			};
+		};
+/* End XCRemoteSwiftPackageReference section */
+
+/* Begin XCSwiftPackageProductDependency section */
+		08E02BE2303B539500D22A9D /* Highlightr */ = {
+			isa = XCSwiftPackageProductDependency;
+			package = 08E02BE1303B539500D22A9D /* XCRemoteSwiftPackageReference "Highlightr" */;
+			productName = Highlightr;
+		};
+/* End XCSwiftPackageProductDependency section */
 	};
 	rootObject = 08E90A113004DBD5008D6478 /* Project object */;
 }
