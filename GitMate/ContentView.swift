@@ -14,6 +14,7 @@ struct ContentView: View {
     @State private var isShowingAllRepos = false
     @State private var visitedTabs: Set<DockTab> = [.home]
     @State private var exploreViewModel: ExploreViewModel?
+    @State private var showingReadme = false
 
     var body: some View {
         ZStack(alignment: .bottom) {
@@ -38,6 +39,36 @@ struct ContentView: View {
                 username: session.githubUsername,
                 pinnedRepos: viewModel.pinnedRepos
             )
+        }
+        .sheet(isPresented: $showingReadme) {
+            if let readme = viewModel.profileReadme {
+                ProfileReadmeView(
+                    htmlContent: readme,
+                    username: session.githubUsername,
+                    followers: viewModel.followers,
+                    following: viewModel.following
+                )
+                .preferredColorScheme(.dark)
+            } else {
+                NavigationView {
+                    VStack(spacing: 16) {
+                        ProgressView().tint(.cyan)
+                        Text("Loading README...")
+                            .foregroundStyle(.secondary)
+                    }
+                    .task {
+                        let username = session.githubUsername
+                        let token = session.savedAccessKey
+                        await viewModel.fetchReadme(for: username, token: token)
+                    }
+                    .toolbar {
+                        ToolbarItem(placement: .navigationBarTrailing) {
+                            Button("Close") { showingReadme = false }
+                        }
+                    }
+                }
+                .preferredColorScheme(.dark)
+            }
         }
         .task {
             let username = session.githubUsername
@@ -75,6 +106,9 @@ struct ContentView: View {
         ScrollView(showsIndicators: false) {
             VStack(alignment: .leading, spacing: 24) {
                 HeaderSection(avatarURL: viewModel.avatarURL)
+                    .onTapGesture {
+                        showingReadme = true
+                    }
                 QuickActionsSection(actions: viewModel.quickActions)
                 PinnedRepositoriesSection(repos: viewModel.pinnedRepos) {
                     isShowingAllRepos = true

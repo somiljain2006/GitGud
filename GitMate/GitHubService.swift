@@ -130,6 +130,58 @@ struct GitHubService {
         await graphQLService.fetchQuickActions(for: username, token: token)
     }
     
+    func fetchUserReadme(for username: String, token: String? = nil) async -> String? {
+        let cleanUsername = username.trimmingCharacters(in: .whitespacesAndNewlines).replacingOccurrences(of: "@", with: "")
+        guard !cleanUsername.isEmpty,
+              let url = URL(string: "https://api.github.com/repos/\(cleanUsername)/\(cleanUsername)/readme") else { return nil }
+        
+        var request = URLRequest(url: url)
+        request.httpMethod = "GET"
+        if let token = token, !token.isEmpty {
+            request.addValue("Bearer \(token)", forHTTPHeaderField: "Authorization")
+        }
+        
+        request.addValue("application/vnd.github.html", forHTTPHeaderField: "Accept")
+        request.addValue("GitGudApp", forHTTPHeaderField: "User-Agent")
+        
+        do {
+            let (data, response) = try await URLSession.shared.data(for: request)
+            guard let httpResponse = response as? HTTPURLResponse, httpResponse.statusCode == 200 else { return nil }
+            return String(data: data, encoding: .utf8)
+        } catch {
+            print("Error fetching README: \(error)")
+            return nil
+        }
+    }
+    
+    func fetchUserStats(for username: String, token: String? = nil) async -> (followers: Int, following: Int)? {
+        let cleanUsername = username.trimmingCharacters(in: .whitespacesAndNewlines).replacingOccurrences(of: "@", with: "")
+        guard !cleanUsername.isEmpty,
+              let url = URL(string: "https://api.github.com/users/\(cleanUsername)") else { return nil }
+        
+        var request = URLRequest(url: url)
+        request.httpMethod = "GET"
+        if let token = token, !token.isEmpty {
+            request.addValue("Bearer \(token)", forHTTPHeaderField: "Authorization")
+        }
+        
+        do {
+            let (data, response) = try await URLSession.shared.data(for: request)
+            guard let httpResponse = response as? HTTPURLResponse, httpResponse.statusCode == 200 else { return nil }
+            
+            struct StatsResponse: Codable {
+                let followers: Int
+                let following: Int
+            }
+            
+            let decoded = try JSONDecoder().decode(StatsResponse.self, from: data)
+            return (decoded.followers, decoded.following)
+        } catch {
+            print("Error fetching user stats: \(error)")
+            return nil
+        }
+    }
+    
     private func fetchRecentReposREST(for username: String) async -> [PinnedRepo] {
         guard let url = URL(string: "https://api.github.com/users/\(username)/repos?sort=updated&per_page=4") else { return [] }
         

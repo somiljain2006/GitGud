@@ -21,8 +21,10 @@ final class ContentViewModel: ObservableObject {
     @Published var activities: [ActivityItem] = []
     @Published var myWork: [WorkItem] = []
     @Published var avatarURL: String? = nil
-    
+    @Published var profileReadme: String? = nil
     @Published var selectedTab: DockTab = .home
+    @Published var followers: Int = 0
+    @Published var following: Int = 0
     
     private let service: GitHubService
     
@@ -36,13 +38,23 @@ final class ContentViewModel: ObservableObject {
         async let fetchedEvents = service.fetchRecentActivity(for: username)
         async let fetchedWork = service.fetchMyWork(for: username, token: token)
         async let fetchedActions = service.fetchQuickActions(for: username, token: token)
-        
-        let (avatar, repos, events, work, actions) = await (fetchedAvatar, fetchedRepos, fetchedEvents, fetchedWork, fetchedActions)
+        async let fetchedStats = service.fetchUserStats(for: username, token: token)
+        let (avatar, repos, events, work, actions, stats) = await (fetchedAvatar, fetchedRepos, fetchedEvents, fetchedWork, fetchedActions, fetchedStats)
         
         self.avatarURL = avatar
         self.pinnedRepos = repos
         self.activities = events
         self.myWork = work
         self.quickActions = actions
+        
+        if let stats = stats {
+            self.followers = stats.followers
+            self.following = stats.following
+        }
+    }
+    
+    func fetchReadme(for username: String, token: String? = nil) async {
+        guard profileReadme == nil else { return }
+        self.profileReadme = await service.fetchUserReadme(for: username, token: token)
     }
 }
