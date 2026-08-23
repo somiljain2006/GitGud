@@ -410,42 +410,322 @@ struct PullRequestDetailView: View {
                     .foregroundStyle(.white.opacity(0.5))
             } else {
                 ForEach(files) { file in
-                    VStack(alignment: .leading, spacing: 8) {
-                        HStack {
-                            Text(file.filename)
-                                .font(.system(size: 14, design: .monospaced))
-                                .foregroundStyle(.cyan)
-                                .lineLimit(1)
-                                .truncationMode(.middle)
-                            
-                            Spacer()
-                            
-                            Text("+\(file.additions)")
-                                .font(.caption.weight(.medium))
-                                .foregroundStyle(.green)
-                            Text("-\(file.deletions)")
-                                .font(.caption.weight(.medium))
-                                .foregroundStyle(.red)
-                        }
-                        
-                        if let patch = file.patch {
-                            DisclosureGroup("View diff") {
-                                Text(patch)
-                                    .font(.system(size: 12, design: .monospaced))
-                                    .foregroundStyle(.white.opacity(0.8))
-                                    .padding()
-                                    .frame(maxWidth: .infinity, alignment: .leading)
-                                    .background(Color.black.opacity(0.3))
-                                    .clipShape(RoundedRectangle(cornerRadius: 8))
+                    NavigationLink {
+                        if let headRepo = pr?.head.repo, let headRef = pr?.head.ref {
+                            PullRequestFileEditorView(
+                                headOwner: headRepo.owner.login,
+                                headRepo: headRepo.name,
+                                headBranch: headRef,
+                                filePath: file.filename,
+                                token: token,
+                                onCommitSuccess: {
+                                    Task { await loadData() }
+                                }
+                            )
+                        } else {
+                            VStack(spacing: 16) {
+                                Image(systemName: "exclamationmark.triangle")
+                                    .font(.system(size: 40))
+                                    .foregroundStyle(.orange)
+                                Text("Cannot edit this file.")
+                                Text("Missing repository head information.")
+                                    .foregroundStyle(.secondary)
                             }
-                            .tint(.cyan)
-                            .font(.caption)
                         }
+                    } label: {
+                        VStack(alignment: .leading, spacing: 8) {
+                            HStack {
+                                Text(file.filename)
+                                    .font(.system(size: 14, design: .monospaced))
+                                    .foregroundStyle(.cyan)
+                                    .lineLimit(1)
+                                    .truncationMode(.middle)
+                                
+                                Spacer()
+                                
+                                Text("+\(file.additions)")
+                                    .font(.caption.weight(.medium))
+                                    .foregroundStyle(.green)
+                                Text("-\(file.deletions)")
+                                    .font(.caption.weight(.medium))
+                                    .foregroundStyle(.red)
+                            }
+                            
+                            if let patch = file.patch {
+                                DisclosureGroup("View diff") {
+                                    Text(patch)
+                                        .font(.system(size: 12, design: .monospaced))
+                                        .foregroundStyle(.white.opacity(0.8))
+                                        .padding()
+                                        .frame(maxWidth: .infinity, alignment: .leading)
+                                        .background(Color.black.opacity(0.3))
+                                        .clipShape(RoundedRectangle(cornerRadius: 8))
+                                }
+                                .tint(.cyan)
+                                .font(.caption)
+                            }
+                        }
+                        .padding(12)
+                        .background(Color.white.opacity(0.04))
+                        .clipShape(RoundedRectangle(cornerRadius: 12))
                     }
-                    .padding(12)
-                    .background(Color.white.opacity(0.04))
-                    .clipShape(RoundedRectangle(cornerRadius: 12))
+                    .buttonStyle(.plain)
                 }
+            }
+        }
+    }
+}
+
+struct PullRequestFileEditorView: View {
+
+    let headOwner: String
+    let headRepo: String
+    let headBranch: String
+    let filePath: String
+    let token: String?
+
+    var onCommitSuccess: (() -> Void)?
+
+
+    @State private var fileContent: GitHubFileContent?
+    @State private var editedText: String = ""
+    @State private var isLoading = true
+    @State private var loadError: String?
+
+    @State private var isCommitting = false
+    @State private var showCommitSheet = false
+    @State private var commitMessage: String = ""
+    @State private var commitError: String?
+
+    private let service = GitHubService()
+    @Environment(\.dismiss) private var dismiss
+
+    private var filename: String {
+        filePath.components(separatedBy: "/").last ?? filePath
+    }
+
+    private var hasChanges: Bool {
+        guard let original = fileContent?.decodedContent else { return false }
+        return editedText != original
+    }
+
+    var body: some View {
+        ZStack {
+            Color(red: 0.05, green: 0.09, blue: 0.12).ignoresSafeArea()
+            content
+        }
+        .navigationTitle(filename)
+        .navigationBarTitleDisplayMode(.inline)
+        .toolbar { toolbarItems }
+        .sheet(isPresented: $showCommitSheet) {
+            commitSheetView
+        }
+        .task { await loadFile() }
+    }
+
+    @ViewBuilder
+    private var content: some View {
+        if isLoading {
+            ProgressView()
+                .tint(.cyan)
+        } else if let error = loadError {
+            editorErrorView(message: error) {
+                Task { await loadFile() }
+            }
+        } else if fileContent?.decodedContent == nil {
+            editorErrorView(message: "This file appears to be binary and cannot be edited as text.") {
+                dismiss()
+            }
+        } else {
+            editorBody
+        }
+    }
+
+    private var editorBody: some View {
+        TextEditor(text: $editedText)
+            .font(.system(size: 13, design: .monospaced))
+            .foregroundStyle(.white)
+            .scrollContentBackground(.hidden)
+            .background(Color(red: 0.05, green: 0.09, blue: 0.12))
+            .padding(.horizontal, 12)
+            .padding(.bottom, 8)
+    }
+
+    @ToolbarContentBuilder
+    private var toolbarItems: some ToolbarContent {
+        ToolbarItem(placement: .navigationBarLeading) {
+            Button("Close") { dismiss() }
+        }
+        ToolbarItem(placement: .navigationBarTrailing) {
+            Button {
+                commitMessage = "Update \(filename)"
+                commitError = nil
+                showCommitSheet = true
+            } label: {
+                Label("Commit", systemImage: "arrow.up.circle")
+                    .foregroundStyle(hasChanges ? Color.cyan : Color.white.opacity(0.3))
+            }
+            .disabled(!hasChanges || isLoading || isCommitting)
+        }
+    }
+
+    private var commitSheetView: some View {
+        NavigationStack {
+            ZStack {
+                Color(red: 0.05, green: 0.09, blue: 0.12).ignoresSafeArea()
+                commitSheetContent
+            }
+            .navigationTitle("Commit Changes")
+            .navigationBarTitleDisplayMode(.inline)
+            .toolbar {
+                ToolbarItem(placement: .navigationBarLeading) {
+                    Button("Cancel") { showCommitSheet = false }
+                }
+                ToolbarItem(placement: .navigationBarTrailing) {
+                    if isCommitting {
+                        ProgressView().tint(.cyan)
+                    } else {
+                        Button("Commit") {
+                            Task { await performCommit() }
+                        }
+                        .foregroundStyle(commitMessage.isEmpty ? Color.white.opacity(0.3) : Color.cyan)
+                        .disabled(commitMessage.isEmpty || isCommitting)
+                    }
+                }
+            }
+        }
+        .preferredColorScheme(.dark)
+    }
+
+    private var commitSheetContent: some View {
+        VStack(alignment: .leading, spacing: 20) {
+            VStack(alignment: .leading, spacing: 8) {
+                Text("COMMIT MESSAGE")
+                    .font(.caption)
+                    .foregroundStyle(.white.opacity(0.6))
+
+                TextField("Describe your change…", text: $commitMessage)
+                    .font(.body)
+                    .foregroundStyle(.white)
+                    .padding(12)
+                    .background(Color.white.opacity(0.06))
+                    .clipShape(RoundedRectangle(cornerRadius: 10))
+            }
+
+            VStack(alignment: .leading, spacing: 6) {
+                Text("COMMITTING TO")
+                    .font(.caption)
+                    .foregroundStyle(.white.opacity(0.6))
+
+                HStack(spacing: 6) {
+                    Image(systemName: "arrow.triangle.branch")
+                        .foregroundStyle(.cyan)
+                        .font(.caption)
+                    Text("\(headOwner)/\(headRepo)")
+                        .font(.system(size: 13, design: .monospaced))
+                        .foregroundStyle(.white.opacity(0.8))
+                }
+                HStack(spacing: 6) {
+                    Image(systemName: "point.3.connected.trianglepath.dotted")
+                        .foregroundStyle(.cyan)
+                        .font(.caption)
+                    Text(headBranch)
+                        .font(.system(size: 13, design: .monospaced))
+                        .foregroundStyle(.white)
+                        .fontWeight(.semibold)
+                }
+
+                Text("This will update the Pull Request automatically.")
+                    .font(.caption)
+                    .foregroundStyle(.white.opacity(0.5))
+                    .padding(.top, 2)
+            }
+            .padding(14)
+            .background(Color.white.opacity(0.04))
+            .clipShape(RoundedRectangle(cornerRadius: 12))
+
+            if let err = commitError {
+                Label(err, systemImage: "exclamationmark.triangle.fill")
+                    .font(.subheadline)
+                    .foregroundStyle(.orange)
+                    .padding(12)
+                    .frame(maxWidth: .infinity, alignment: .leading)
+                    .background(Color.orange.opacity(0.1))
+                    .clipShape(RoundedRectangle(cornerRadius: 10))
+            }
+
+            Spacer()
+        }
+        .padding(20)
+    }
+
+    private func loadFile() async {
+        isLoading = true
+        loadError = nil
+        let result = await service.fetchFileContent(
+            owner: headOwner,
+            repo: headRepo,
+            path: filePath,
+            branch: headBranch,
+            token: token
+        )
+        if let result {
+            fileContent = result
+            editedText = result.decodedContent ?? ""
+        } else {
+            loadError = "Could not load file. Check your token and repository access."
+        }
+        isLoading = false
+    }
+
+    private func performCommit() async {
+        guard let sha = fileContent?.sha else { return }
+        isCommitting = true
+        commitError = nil
+
+        let result = await service.updateFile(
+            owner: headOwner,
+            repo: headRepo,
+            path: filePath,
+            branch: headBranch,
+            sha: sha,
+            content: editedText,
+            commitMessage: commitMessage,
+            token: token
+        )
+
+        switch result {
+        case .success:
+            showCommitSheet = false
+            onCommitSuccess?()
+            dismiss()
+        case .failure(let err):
+            commitError = err.localizedDescription
+        }
+
+        isCommitting = false
+    }
+
+    @ViewBuilder
+    private func editorErrorView(message: String, action: @escaping () -> Void) -> some View {
+        VStack(spacing: 20) {
+            Image(systemName: "exclamationmark.triangle")
+                .font(.system(size: 40))
+                .foregroundStyle(.orange)
+
+            Text(message)
+                .font(.subheadline)
+                .foregroundStyle(.white.opacity(0.7))
+                .multilineTextAlignment(.center)
+                .padding(.horizontal, 32)
+
+            Button(action: action) {
+                Text("OK")
+                    .padding(.horizontal, 24)
+                    .padding(.vertical, 10)
+                    .background(Color.cyan.opacity(0.2))
+                    .foregroundStyle(.cyan)
+                    .clipShape(Capsule())
             }
         }
     }

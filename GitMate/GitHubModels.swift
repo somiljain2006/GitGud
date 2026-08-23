@@ -161,6 +161,7 @@ struct PullRequestDetail: Codable, Identifiable {
     let comments: Int
     let reviewComments: Int
     let base: PRBaseHead
+    let head: PRBaseHead
     let htmlUrl: String
 
     enum CodingKeys: String, CodingKey {
@@ -172,6 +173,7 @@ struct PullRequestDetail: Codable, Identifiable {
         case changedFiles = "changed_files"
         case reviewComments = "review_comments"
         case base
+        case head
         case htmlUrl = "html_url"
     }
 }
@@ -187,6 +189,7 @@ struct GitHubUser: Codable {
 }
 
 struct PRBaseHead: Codable {
+    let ref: String?
     let repo: PRRepo?
 }
 
@@ -204,6 +207,45 @@ struct PullRequestFile: Codable, Identifiable {
     let patch: String?
     
     var id: String { filename }
+}
+
+struct GitHubFileContent: Codable {
+    let name: String
+    let path: String
+    let sha: String
+    let content: String
+    let encoding: String
+    
+    var decodedContent: String? {
+        guard encoding == "base64" else { return nil }
+        let stripped = content.components(separatedBy: .whitespacesAndNewlines).joined()
+        guard let data = Data(base64Encoded: stripped) else { return nil }
+        return String(data: data, encoding: .utf8)
+    }
+}
+
+enum FileUpdateError: Error, LocalizedError {
+    case missingToken
+    case unauthorized
+    case forbidden
+    case notFound
+    case conflict
+    case network(Error)
+    case badResponse(Int)
+    case encodingFailed
+
+    var errorDescription: String? {
+        switch self {
+        case .missingToken:      return "No GitHub token. Please sign in again."
+        case .unauthorized:      return "Authentication failed. Check your token."
+        case .forbidden:         return "You don't have permission to modify this repository."
+        case .notFound:          return "File or repository not found."
+        case .conflict:          return "The file was changed remotely. Reload the file before committing."
+        case .network(let err):  return "Network error: \(err.localizedDescription)"
+        case .badResponse(let c): return "Unexpected response from GitHub (HTTP \(c))."
+        case .encodingFailed:    return "Failed to encode the file content."
+        }
+    }
 }
 
 struct PullRequestReference: Identifiable {

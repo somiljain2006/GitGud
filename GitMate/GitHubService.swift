@@ -8,6 +8,7 @@
 import Foundation
 import SwiftUI
 
+// swiftlint:disable type_body_length
 struct GitHubService {
     private let graphQLService: GitHubGraphQLService
     
@@ -274,7 +275,92 @@ struct GitHubService {
             return []
         }
     }
-    
+
+    func fetchFileContent(
+        owner: String,
+        repo: String,
+        path: String,
+        branch: String,
+        token: String?
+    ) async -> GitHubFileContent? {
+        let encodedPath = path.addingPercentEncoding(withAllowedCharacters: .urlPathAllowed) ?? path
+        guard var components = URLComponents(string: "https://api.github.com/repos/\(owner)/\(repo)/contents/\(encodedPath)") else { return nil }
+        components.queryItems = [URLQueryItem(name: "ref", value: branch)]
+        guard let url = components.url else { return nil }
+
+        var request = URLRequest(url: url)
+        request.httpMethod = "GET"
+        if let token = token, !token.isEmpty {
+            request.addValue("Bearer \(token)", forHTTPHeaderField: "Authorization")
+        }
+        request.addValue("application/vnd.github+json", forHTTPHeaderField: "Accept")
+        request.addValue("GitGudApp", forHTTPHeaderField: "User-Agent")
+
+        do {
+            let (data, response) = try await URLSession.shared.data(for: request)
+            guard let httpResponse = response as? HTTPURLResponse, httpResponse.statusCode == 200 else { return nil }
+            return try JSONDecoder().decode(GitHubFileContent.self, from: data)
+        } catch {
+            print("Error fetching file content: \(error)")
+            return nil
+        }
+    }
+
+    func updateFile(
+        owner: String,
+        repo: String,
+        path: String,
+        branch: String,
+        sha: String,
+        content: String,
+        commitMessage: String,
+        token: String?
+    ) async -> Result<Void, FileUpdateError> {
+        guard let token = token, !token.isEmpty else { return .failure(.missingToken) }
+
+        guard let contentData = content.data(using: .utf8) else { return .failure(.encodingFailed) }
+        let base64Content = contentData.base64EncodedString()
+
+        let encodedPath = path.addingPercentEncoding(withAllowedCharacters: .urlPathAllowed) ?? path
+        guard let url = URL(string: "https://api.github.com/repos/\(owner)/\(repo)/contents/\(encodedPath)") else {
+            return .failure(.badResponse(0))
+        }
+
+        var request = URLRequest(url: url)
+        request.httpMethod = "PUT"
+        request.addValue("Bearer \(token)", forHTTPHeaderField: "Authorization")
+        request.addValue("application/vnd.github+json", forHTTPHeaderField: "Accept")
+        request.addValue("GitGudApp", forHTTPHeaderField: "User-Agent")
+        request.addValue("application/json", forHTTPHeaderField: "Content-Type")
+
+        let body: [String: Any] = [
+            "message": commitMessage,
+            "content": base64Content,
+            "sha": sha,
+            "branch": branch
+        ]
+        do {
+            request.httpBody = try JSONSerialization.data(withJSONObject: body)
+        } catch {
+            return .failure(.encodingFailed)
+        }
+
+        do {
+            let (_, response) = try await URLSession.shared.data(for: request)
+            guard let httpResponse = response as? HTTPURLResponse else { return .failure(.badResponse(0)) }
+            switch httpResponse.statusCode {
+            case 200, 201: return .success(())
+            case 401: return .failure(.unauthorized)
+            case 403: return .failure(.forbidden)
+            case 404: return .failure(.notFound)
+            case 409: return .failure(.conflict)
+            default:  return .failure(.badResponse(httpResponse.statusCode))
+            }
+        } catch {
+            return .failure(.network(error))
+        }
+    }
+
     private func fetchRecentReposREST(for username: String) async -> [PinnedRepo] {
         guard let url = URL(string: "https://api.github.com/users/\(username)/repos?sort=updated&per_page=4") else { return [] }
         
