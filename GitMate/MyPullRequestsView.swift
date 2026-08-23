@@ -63,7 +63,7 @@ struct MyPullRequestsView: View {
                             let parts = pullRequest.repositoryName.split(separator: "/")
                             let owner = !parts.isEmpty ? String(parts[0]) : ""
                             let repo = parts.count > 1 ? String(parts[1]) : pullRequest.repositoryName
-                            
+
                             NavigationLink {
                                 PullRequestDetailView(
                                     reference: PullRequestReference(
@@ -108,95 +108,95 @@ struct PullRequestCard: View {
 
     var body: some View {
         VStack(alignment: .leading, spacing: 10) {
-                HStack {
-                    Image(
-                        systemName: pullRequest.state == "open"
-                            ? "arrow.triangle.branch"
-                            : "checkmark.circle.fill"
-                    )
-                    .foregroundStyle(
-                        pullRequest.state == "open"
-                            ? .green
-                            : .purple
-                    )
+            HStack {
+                Image(
+                    systemName: pullRequest.state == "open"
+                        ? "arrow.triangle.branch"
+                        : "checkmark.circle.fill"
+                )
+                .foregroundStyle(
+                    pullRequest.state == "open"
+                        ? .green
+                        : .purple
+                )
 
-                    Text("#\(pullRequest.number)")
-                        .font(
-                            .system(
-                                size: 13,
-                                weight: .medium,
-                                design: .monospaced
-                            )
-                        )
-                        .foregroundStyle(.white.opacity(0.5))
-
-                    Spacer()
-
-                    Text(pullRequest.repositoryName)
-                        .font(
-                            .system(
-                                size: 12,
-                                design: .monospaced
-                            )
-                        )
-                        .foregroundStyle(.white.opacity(0.5))
-                }
-
-                Text(pullRequest.title)
+                Text("#\(pullRequest.number)")
                     .font(
                         .system(
-                            size: 17,
-                            weight: .semibold
+                            size: 13,
+                            weight: .medium,
+                            design: .monospaced
                         )
                     )
-                    .foregroundStyle(.white)
-                    .multilineTextAlignment(.leading)
+                    .foregroundStyle(.white.opacity(0.5))
 
-                if let body = pullRequest.body,
-                   !body.isEmpty {
-                    Text(body)
-                        .font(.system(size: 14))
-                        .foregroundStyle(.white.opacity(0.6))
-                        .lineLimit(3)
-                        .multilineTextAlignment(.leading)
-                }
+                Spacer()
+
+                Text(pullRequest.repositoryName)
+                    .font(
+                        .system(
+                            size: 12,
+                            design: .monospaced
+                        )
+                    )
+                    .foregroundStyle(.white.opacity(0.5))
             }
-            .frame(maxWidth: .infinity, alignment: .leading)
-            .padding(16)
-            .background(Color.white.opacity(0.04))
-            .clipShape(
-                RoundedRectangle(
-                    cornerRadius: 16,
-                    style: .continuous
-                )
-            )
-            .overlay(
-                RoundedRectangle(
-                    cornerRadius: 16,
-                    style: .continuous
-                )
-                .stroke(
-                    Color.white.opacity(0.06),
-                    lineWidth: 1
-                )
-            )
-        }
-    }
 
+            Text(pullRequest.title)
+                .font(
+                    .system(
+                        size: 17,
+                        weight: .semibold
+                    )
+                )
+                .foregroundStyle(.white)
+                .multilineTextAlignment(.leading)
+
+            if let body = pullRequest.body,
+               !body.isEmpty
+            {
+                Text(body)
+                    .font(.system(size: 14))
+                    .foregroundStyle(.white.opacity(0.6))
+                    .lineLimit(3)
+                    .multilineTextAlignment(.leading)
+            }
+        }
+        .frame(maxWidth: .infinity, alignment: .leading)
+        .padding(16)
+        .background(Color.white.opacity(0.04))
+        .clipShape(
+            RoundedRectangle(
+                cornerRadius: 16,
+                style: .continuous
+            )
+        )
+        .overlay(
+            RoundedRectangle(
+                cornerRadius: 16,
+                style: .continuous
+            )
+            .stroke(
+                Color.white.opacity(0.06),
+                lineWidth: 1
+            )
+        )
+    }
+}
 
 struct PullRequestDetailView: View {
     let reference: PullRequestReference
     let token: String?
-    
+
     @State private var pr: PullRequestDetail?
     @State private var files: [PullRequestFile] = []
     @State private var isLoading = true
     @State private var hasError = false
-    
+
     private let service = GitHubService()
     @Environment(\.openURL) private var openURL
     @Environment(\.dismiss) private var dismiss
-    
+
     var body: some View {
         ScrollView {
             VStack(alignment: .leading, spacing: 20) {
@@ -210,10 +210,10 @@ struct PullRequestDetailView: View {
                         Image(systemName: "exclamationmark.triangle")
                             .font(.system(size: 40))
                             .foregroundStyle(.orange)
-                        
+
                         Text("Unable to load pull request")
                             .font(.headline)
-                        
+
                         Button("Retry") {
                             Task {
                                 await loadData()
@@ -259,51 +259,50 @@ struct PullRequestDetailView: View {
             await loadData()
         }
     }
-    
+
     private func loadData() async {
         isLoading = true
         hasError = false
-        
+
         async let fetchedPR = service.fetchPullRequestDetail(
             owner: reference.owner,
             repo: reference.repository,
             number: reference.number,
             token: token
         )
-        
+
         async let fetchedFiles = service.fetchPullRequestFiles(
             owner: reference.owner,
             repo: reference.repository,
             number: reference.number,
             token: token
         )
-        
-        let (prResult, filesResult) = await (fetchedPR, fetchedFiles)
-        
+
+        let (prResult, filesResult) = await(fetchedPR, fetchedFiles)
+
         if let prResult = prResult {
-            self.pr = prResult
-            self.files = filesResult
+            pr = prResult
+            files = filesResult
         } else {
-            self.hasError = true
+            hasError = true
         }
-        
+
         isLoading = false
     }
-    
-    @ViewBuilder
+
     private func headerSection(pr: PullRequestDetail) -> some View {
         VStack(alignment: .leading, spacing: 12) {
             Text("\(reference.owner)/\(reference.repository) #\(pr.number)")
                 .font(.subheadline)
                 .foregroundStyle(.white.opacity(0.6))
-            
+
             Text(pr.title)
                 .font(.title2.weight(.semibold))
                 .foregroundStyle(.white)
-            
+
             HStack(spacing: 8) {
                 prStateBadge(pr: pr)
-                
+
                 AsyncImage(url: URL(string: pr.user.avatarUrl)) { image in
                     image.resizable()
                 } placeholder: {
@@ -311,56 +310,61 @@ struct PullRequestDetailView: View {
                 }
                 .frame(width: 24, height: 24)
                 .clipShape(Circle())
-                
+
                 Text(pr.user.login)
                     .font(.subheadline.weight(.medium))
                     .foregroundStyle(.white)
-                
+
                 Spacer()
             }
-            
+
             Text("Opened \(RelativeDateFormatter.relativeString(from: pr.createdAt))")
                 .font(.caption)
                 .foregroundStyle(.white.opacity(0.5))
         }
     }
-    
+
+    struct PRStateDisplay {
+        let title: String
+        let color: Color
+        let icon: String
+    }
+
     @ViewBuilder
     private func prStateBadge(pr: PullRequestDetail) -> some View {
-        let (title, color, icon) = stateProperties(for: pr)
-        
+        let display = stateProperties(for: pr)
+
         HStack(spacing: 4) {
-            Image(systemName: icon)
+            Image(systemName: display.icon)
                 .font(.caption)
-            Text(title)
+            Text(display.title)
                 .font(.caption.weight(.medium))
         }
         .padding(.horizontal, 8)
         .padding(.vertical, 4)
-        .background(color.opacity(0.2))
-        .foregroundStyle(color)
+        .background(display.color.opacity(0.2))
+        .foregroundStyle(display.color)
         .clipShape(Capsule())
     }
-    
-    private func stateProperties(for pr: PullRequestDetail) -> (String, Color, String) {
+
+    private func stateProperties(for pr: PullRequestDetail) -> PRStateDisplay {
         if pr.mergedAt != nil {
-            return ("Merged", .purple, "arrow.triangle.merge")
+            return PRStateDisplay(title: "Merged", color: .purple, icon: "arrow.triangle.merge")
         } else if pr.state == "closed" {
-            return ("Closed", .red, "xmark.circle")
+            return PRStateDisplay(title: "Closed", color: .red, icon: "xmark.circle")
         } else if pr.draft == true {
-            return ("Draft", .gray, "doc.text")
+            return PRStateDisplay(title: "Draft", color: .gray, icon: "doc.text")
         } else {
-            return ("Open", .green, "arrow.triangle.branch")
+            return PRStateDisplay(title: "Open", color: .green, icon: "arrow.triangle.branch")
         }
     }
-    
-    @ViewBuilder
+
     private func descriptionSection(pr: PullRequestDetail) -> some View {
         VStack(alignment: .leading, spacing: 8) {
             Text("Description")
                 .font(.headline)
                 .foregroundStyle(.white)
-            
+
             if let body = pr.body, !body.isEmpty {
                 Text(body)
                     .font(.body)
@@ -373,8 +377,7 @@ struct PullRequestDetailView: View {
             }
         }
     }
-    
-    @ViewBuilder
+
     private func statsSection(pr: PullRequestDetail) -> some View {
         HStack(spacing: 24) {
             statItem(title: "Additions", value: "+\(pr.additions)", color: .green)
@@ -384,8 +387,7 @@ struct PullRequestDetailView: View {
             statItem(title: "Comments", value: "\(pr.comments + pr.reviewComments)", color: .white)
         }
     }
-    
-    @ViewBuilder
+
     private func statItem(title: String, value: String, color: Color) -> some View {
         VStack(spacing: 4) {
             Text(value)
@@ -396,14 +398,13 @@ struct PullRequestDetailView: View {
                 .foregroundStyle(.white.opacity(0.6))
         }
     }
-    
-    @ViewBuilder
+
     private func filesSection() -> some View {
         VStack(alignment: .leading, spacing: 16) {
             Text("Files Changed")
                 .font(.headline)
                 .foregroundStyle(.white)
-            
+
             if files.isEmpty {
                 Text("No files changed.")
                     .font(.subheadline)
@@ -411,73 +412,81 @@ struct PullRequestDetailView: View {
             } else {
                 ForEach(files) { file in
                     NavigationLink {
-                        if let headRepo = pr?.head.repo, let headRef = pr?.head.ref {
-                            PullRequestFileEditorView(
-                                headOwner: headRepo.owner.login,
-                                headRepo: headRepo.name,
-                                headBranch: headRef,
-                                filePath: file.filename,
-                                token: token,
-                                onCommitSuccess: {
-                                    Task { await loadData() }
-                                }
-                            )
-                        } else {
-                            VStack(spacing: 16) {
-                                Image(systemName: "exclamationmark.triangle")
-                                    .font(.system(size: 40))
-                                    .foregroundStyle(.orange)
-                                Text("Cannot edit this file.")
-                                Text("Missing repository head information.")
-                                    .foregroundStyle(.secondary)
-                            }
-                        }
+                        fileDestination(for: file)
                     } label: {
-                        VStack(alignment: .leading, spacing: 8) {
-                            HStack {
-                                Text(file.filename)
-                                    .font(.system(size: 14, design: .monospaced))
-                                    .foregroundStyle(.cyan)
-                                    .lineLimit(1)
-                                    .truncationMode(.middle)
-                                
-                                Spacer()
-                                
-                                Text("+\(file.additions)")
-                                    .font(.caption.weight(.medium))
-                                    .foregroundStyle(.green)
-                                Text("-\(file.deletions)")
-                                    .font(.caption.weight(.medium))
-                                    .foregroundStyle(.red)
-                            }
-                            
-                            if let patch = file.patch {
-                                DisclosureGroup("View diff") {
-                                    Text(patch)
-                                        .font(.system(size: 12, design: .monospaced))
-                                        .foregroundStyle(.white.opacity(0.8))
-                                        .padding()
-                                        .frame(maxWidth: .infinity, alignment: .leading)
-                                        .background(Color.black.opacity(0.3))
-                                        .clipShape(RoundedRectangle(cornerRadius: 8))
-                                }
-                                .tint(.cyan)
-                                .font(.caption)
-                            }
-                        }
-                        .padding(12)
-                        .background(Color.white.opacity(0.04))
-                        .clipShape(RoundedRectangle(cornerRadius: 12))
+                        fileLabel(for: file)
                     }
                     .buttonStyle(.plain)
                 }
             }
         }
     }
+
+    @ViewBuilder
+    private func fileDestination(for file: PullRequestFile) -> some View {
+        if let headRepo = pr?.head.repo, let headRef = pr?.head.ref {
+            PullRequestFileEditorView(
+                headOwner: headRepo.owner.login,
+                headRepo: headRepo.name,
+                headBranch: headRef,
+                filePath: file.filename,
+                token: token,
+                onCommitSuccess: {
+                    Task { await loadData() }
+                }
+            )
+        } else {
+            VStack(spacing: 16) {
+                Image(systemName: "exclamationmark.triangle")
+                    .font(.system(size: 40))
+                    .foregroundStyle(.orange)
+                Text("Cannot edit this file.")
+                Text("Missing repository head information.")
+                    .foregroundStyle(.secondary)
+            }
+        }
+    }
+
+    private func fileLabel(for file: PullRequestFile) -> some View {
+        VStack(alignment: .leading, spacing: 8) {
+            HStack {
+                Text(file.filename)
+                    .font(.system(size: 14, design: .monospaced))
+                    .foregroundStyle(.cyan)
+                    .lineLimit(1)
+                    .truncationMode(.middle)
+
+                Spacer()
+
+                Text("+\(file.additions)")
+                    .font(.caption.weight(.medium))
+                    .foregroundStyle(.green)
+                Text("-\(file.deletions)")
+                    .font(.caption.weight(.medium))
+                    .foregroundStyle(.red)
+            }
+
+            if let patch = file.patch {
+                DisclosureGroup("View diff") {
+                    Text(patch)
+                        .font(.system(size: 12, design: .monospaced))
+                        .foregroundStyle(.white.opacity(0.8))
+                        .padding()
+                        .frame(maxWidth: .infinity, alignment: .leading)
+                        .background(Color.black.opacity(0.3))
+                        .clipShape(RoundedRectangle(cornerRadius: 8))
+                }
+                .tint(.cyan)
+                .font(.caption)
+            }
+        }
+        .padding(12)
+        .background(Color.white.opacity(0.04))
+        .clipShape(RoundedRectangle(cornerRadius: 12))
+    }
 }
 
 struct PullRequestFileEditorView: View {
-
     let headOwner: String
     let headRepo: String
     let headBranch: String
@@ -485,7 +494,6 @@ struct PullRequestFileEditorView: View {
     let token: String?
 
     var onCommitSuccess: (() -> Void)?
-
 
     @State private var fileContent: GitHubFileContent?
     @State private var editedText: String = ""
@@ -680,7 +688,7 @@ struct PullRequestFileEditorView: View {
         isCommitting = true
         commitError = nil
 
-        let result = await service.updateFile(
+        let req = FileUpdateRequest(
             owner: headOwner,
             repo: headRepo,
             path: filePath,
@@ -690,20 +698,20 @@ struct PullRequestFileEditorView: View {
             commitMessage: commitMessage,
             token: token
         )
+        let result = await service.updateFile(req: req)
 
         switch result {
         case .success:
             showCommitSheet = false
             onCommitSuccess?()
             dismiss()
-        case .failure(let err):
+        case let .failure(err):
             commitError = err.localizedDescription
         }
 
         isCommitting = false
     }
 
-    @ViewBuilder
     private func editorErrorView(message: String, action: @escaping () -> Void) -> some View {
         VStack(spacing: 20) {
             Image(systemName: "exclamationmark.triangle")

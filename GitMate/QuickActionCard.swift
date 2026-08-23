@@ -19,7 +19,7 @@ struct QuickActionCard: View {
                 LinearGradient(
                     colors: [
                         action.tint.opacity(0.18),
-                        .clear
+                        .clear,
                     ],
                     startPoint: .topLeading,
                     endPoint: .bottomTrailing

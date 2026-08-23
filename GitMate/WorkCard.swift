@@ -9,7 +9,7 @@ import SwiftUI
 
 struct WorkCard: View {
     let item: WorkItem
-    
+
     var body: some View {
         HStack(alignment: .top, spacing: 14) {
             Group {
@@ -27,30 +27,30 @@ struct WorkCard: View {
                 }
             }
             .frame(width: 34)
-            
+
             VStack(alignment: .leading, spacing: 8) {
                 HStack(alignment: .top) {
                     Text(item.repository)
                         .font(.system(size: 15))
                         .foregroundStyle(.gray)
-                    
+
                     Spacer()
-                    
+
                     Text(item.time)
                         .foregroundStyle(.gray)
                         .font(.system(size: 15))
                 }
-                
+
                 Text(item.title)
                     .font(.system(size: 18, weight: .semibold))
                     .foregroundStyle(.white)
                     .fixedSize(horizontal: false, vertical: true)
-                
+
                 Text(item.description)
                     .foregroundStyle(.gray)
                     .font(.system(size: 16))
             }
-            
+
             VStack {
                 RoundedRectangle(cornerRadius: 8)
                     .fill(Color.white.opacity(0.06))
@@ -60,7 +60,7 @@ struct WorkCard: View {
                             .foregroundStyle(.gray)
                             .font(.system(size: 16, weight: .bold))
                     }
-                
+
                 Spacer()
             }
         }

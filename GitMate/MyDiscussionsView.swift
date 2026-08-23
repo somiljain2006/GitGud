@@ -103,7 +103,8 @@ struct DiscussionCard: View {
                     .multilineTextAlignment(.leading)
 
                 if let body = discussion.body,
-                   !body.isEmpty {
+                   !body.isEmpty
+                {
                     Text(body)
                         .font(.system(size: 14))
                         .foregroundStyle(.white.opacity(0.6))

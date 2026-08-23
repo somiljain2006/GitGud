@@ -4,16 +4,16 @@
 //  Created by somil jain on 04/08/26.
 //
 
-import SwiftUI
 import Combine
+import SwiftUI
 
 struct InboxView: View {
     @ObservedObject var viewModel: InboxViewModel
     @EnvironmentObject private var session: SessionStore
-    
+
     @State private var selectedFilter: InboxFilter = .all
     @State private var selectedPR: PullRequestReference?
-    
+
     private var filteredNotifications: [InboxNotification] {
         switch selectedFilter {
         case .all: return viewModel.notifications
@@ -23,18 +23,17 @@ struct InboxView: View {
         case .read: return viewModel.notifications.filter { !$0.isUnread }
         }
     }
-    
+
     var body: some View {
         ScrollView(showsIndicators: false) {
             VStack(alignment: .leading, spacing: 24) {
-                
                 HStack(alignment: .bottom) {
                     Text("Inbox")
                         .font(.system(size: 34, weight: .bold, design: .rounded))
                         .foregroundStyle(.white)
-                    
+
                     Spacer()
-                    
+
                     Button("Mark all read") {
                         Task {
                             await viewModel.markAllAsRead(token: session.savedAccessKey)
@@ -46,7 +45,7 @@ struct InboxView: View {
                 }
                 .padding(.horizontal, 20)
                 .padding(.top, 16)
-                
+
                 ScrollView(.horizontal, showsIndicators: false) {
                     HStack(spacing: 12) {
                         ForEach(InboxFilter.allCases, id: \.self) { filter in
@@ -59,8 +58,8 @@ struct InboxView: View {
                                     .font(.system(size: 13, weight: .semibold))
                                     .foregroundStyle(
                                         selectedFilter == filter
-                                        ? Color.cyan
-                                        : Color.white.opacity(0.7)
+                                            ? Color.cyan
+                                            : Color.white.opacity(0.7)
                                     )
                                     .padding(.horizontal, 16)
                                     .padding(.vertical, 8)
@@ -68,16 +67,16 @@ struct InboxView: View {
                                         Capsule()
                                             .fill(
                                                 selectedFilter == filter
-                                                ? Color.cyan.opacity(0.15)
-                                                : Color.white.opacity(0.05)
+                                                    ? Color.cyan.opacity(0.15)
+                                                    : Color.white.opacity(0.05)
                                             )
                                     )
                                     .overlay(
                                         Capsule()
                                             .stroke(
                                                 selectedFilter == filter
-                                                ? Color.cyan.opacity(0.5)
-                                                : Color.white.opacity(0.1),
+                                                    ? Color.cyan.opacity(0.5)
+                                                    : Color.white.opacity(0.1),
                                                 lineWidth: 1
                                             )
                                     )
@@ -87,7 +86,7 @@ struct InboxView: View {
                     }
                     .padding(.horizontal, 20)
                 }
-                
+
                 if viewModel.isLoading {
                     ProgressView()
                         .tint(.cyan)
@@ -100,7 +99,7 @@ struct InboxView: View {
                             .foregroundStyle(.white.opacity(0.5))
                             .multilineTextAlignment(.center)
                             .padding(.horizontal, 20)
-                        
+
                         Button("Retry Fetch") {
                             Task {
                                 await viewModel.fetchNotifications(token: session.savedAccessKey)
@@ -151,14 +150,14 @@ final class InboxViewModel: ObservableObject {
     @Published var notifications: [InboxNotification] = []
     @Published var isLoading = false
     @Published var emptyStateMessage: String = "No notifications found."
-    
+
     var hasUnreadNotifications: Bool {
         notifications.contains(where: { $0.isUnread })
     }
-    
+
     func markAllAsRead(token: String?) async {
-        guard let token = token, !token.isEmpty else { return }
-        
+        guard let token, !token.isEmpty else { return }
+
         let previousNotifications = notifications
         withAnimation {
             notifications = notifications.map { notif in
@@ -167,25 +166,25 @@ final class InboxViewModel: ObservableObject {
                 return updated
             }
         }
-        
+
         guard let url = URL(string: "https://api.github.com/notifications") else { return }
-        
+
         var request = URLRequest(url: url)
         request.httpMethod = "PUT"
         request.setValue("Bearer \(token)", forHTTPHeaderField: "Authorization")
         request.setValue("application/vnd.github+json", forHTTPHeaderField: "Accept")
         request.setValue("GitMate-App", forHTTPHeaderField: "User-Agent")
         request.setValue("2022-11-28", forHTTPHeaderField: "X-GitHub-Api-Version")
-        
+
         let body: [String: Any] = [
             "read": true,
-            "last_read_at": ISO8601DateFormatter().string(from: Date())
+            "last_read_at": ISO8601DateFormatter().string(from: Date()),
         ]
         request.httpBody = try? JSONSerialization.data(withJSONObject: body)
-        
+
         do {
             let (_, response) = try await URLSession.shared.data(for: request)
-            guard let httpResponse = response as? HTTPURLResponse, (200...299).contains(httpResponse.statusCode) else {
+            guard let httpResponse = response as? HTTPURLResponse, (200 ... 299).contains(httpResponse.statusCode) else {
                 print("GitHub API error while marking notifications as read.")
                 withAnimation {
                     self.notifications = previousNotifications
@@ -200,18 +199,18 @@ final class InboxViewModel: ObservableObject {
             }
         }
     }
-    
+
     func fetchNotifications(token: String?, isRefresh: Bool = false) async {
-        guard let token = token, !token.isEmpty else {
+        guard let token, !token.isEmpty else {
             emptyStateMessage = "Missing access token. Please sign in again."
             print("InboxViewModel: Token is missing or empty in SessionStore.")
             return
         }
-        
+
         let tokenType = classifyToken(token)
         print("Inbox token type guess: \(tokenType)")
         printTokenSupportHint(for: tokenType)
-        
+
         if !isRefresh {
             isLoading = true
         }
@@ -220,128 +219,135 @@ final class InboxViewModel: ObservableObject {
                 isLoading = false
             }
         }
-        
-        guard let url = URL(string: "https://api.github.com/notifications?all=true") else {
+
+        guard let request = createNotificationsRequest(token: token) else {
             emptyStateMessage = "Invalid notifications URL."
             return
         }
-        
+
+        do {
+            let (data, response) = try await URLSession.shared.data(for: request)
+            guard let httpResponse = response as? HTTPURLResponse else {
+                emptyStateMessage = "Invalid server response."
+                return
+            }
+
+            logHTTPResponse(httpResponse, data: data)
+
+            guard httpResponse.statusCode == 200 else {
+                await handleFetchErrorResponse(data: data, statusCode: httpResponse.statusCode, token: token)
+                return
+            }
+
+            await processNotificationData(data, token: token)
+        } catch {
+            print("Network error while fetching notifications: \(error)")
+            emptyStateMessage = "Network error: \(error.localizedDescription)"
+            notifications = []
+        }
+    }
+
+    private func processNotificationData(_ data: Data, token: String) async {
+        do {
+            let apiResponse = try JSONDecoder().decode([GitHubNotification].self, from: data)
+            print("Decoded notifications count: \(apiResponse.count)")
+
+            notifications = await mapToInboxNotifications(apiResponse, token: token)
+
+            if notifications.isEmpty {
+                let authProbe = await probeAuthenticatedUser(token: token)
+                emptyStateMessage = """
+                No notifications found.
+                \(authProbe)
+                Possible causes: inbox is truly empty, notifications already cleared/read, or token/account context differs.
+                """
+            } else {
+                emptyStateMessage = "No notifications found."
+            }
+        } catch {
+            printDecodingError(error, rawData: data)
+            emptyStateMessage = "Failed to decode notifications. Check debug logs."
+            notifications = []
+        }
+    }
+
+    private func createNotificationsRequest(token: String) -> URLRequest? {
+        guard let url = URL(string: "https://api.github.com/notifications?all=true") else { return nil }
         var request = URLRequest(url: url)
         request.httpMethod = "GET"
         request.setValue("Bearer \(token)", forHTTPHeaderField: "Authorization")
         request.setValue("application/vnd.github+json", forHTTPHeaderField: "Accept")
         request.setValue("GitMate-App", forHTTPHeaderField: "User-Agent")
         request.setValue("2022-11-28", forHTTPHeaderField: "X-GitHub-Api-Version")
-        
-        print("Request: \(request.httpMethod ?? "GET") \(url.absoluteString)")
-        print("Headers: \(request.allHTTPHeaderFields ?? [:])")
-        
-        do {
-            let (data, response) = try await URLSession.shared.data(for: request)
-            guard let httpResponse = response as? HTTPURLResponse else {
-                emptyStateMessage = "Invalid server response."
-                print("Response was not HTTPURLResponse.")
-                return
-            }
-            
-            logHTTPResponse(httpResponse, data: data)
-            
-            guard httpResponse.statusCode == 200 else {
-                let apiError = try? JSONDecoder().decode(GitHubAPIErrorResponse.self, from: data)
-                let apiMessage = apiError?.message ?? "HTTP \(httpResponse.statusCode)"
-                let docURL = apiError?.documentationURL ?? "n/a"
-                
-                print("GitHub API error message: \(apiMessage)")
-                print("Docs URL: \(docURL)")
-                
-                let authProbe = await probeAuthenticatedUser(token: token)
-                emptyStateMessage = "GitHub error: \(apiMessage)\n\(authProbe)"
-                return
-            }
-            
-            let decoder = JSONDecoder()
-            
-            do {
-                let apiResponse = try decoder.decode([GitHubNotification].self, from: data)
-                print("Decoded notifications count: \(apiResponse.count)")
-                
-                let mappedNotifications = await withTaskGroup(of: (Int, InboxNotification).self) { group in
-                    for (index, apiNotif) in apiResponse.enumerated() {
-                        group.addTask {
-                            let kind = await self.fetchSubjectKind(for: apiNotif.subject, token: token)
-                            
-                            let formatter = ISO8601DateFormatter()
-                            let date = formatter.date(from: apiNotif.updatedAt) ?? Date()
-                            let relativeFormatter = RelativeDateTimeFormatter()
-                            relativeFormatter.unitsStyle = .abbreviated
-                            let timeString = relativeFormatter.localizedString(for: date, relativeTo: Date())
-                            
-                            let parts = apiNotif.repository.fullName.split(separator: "/")
-                            let owner = !parts.isEmpty ? String(parts[0]) : nil
-                            let childRepoName = parts.count > 1 ? String(parts[1]) : ""
-                            
-                            var prNumber: Int? = nil
-                            if await kind.isPullRequest, let urlStr = apiNotif.subject.url, let url = URL(string: urlStr) {
-                                if let numStr = url.lastPathComponent.components(separatedBy: "?").first, let num = Int(numStr) {
-                                    prNumber = num
-                                }
-                            }
-                            
-                            let notification = InboxNotification(
-                                id: apiNotif.id,
-                                kind: kind,
-                                title: apiNotif.subject.title,
-                                time: timeString,
-                                repo: childRepoName,
-                                isUnread: apiNotif.unread,
-                                owner: owner,
-                                prNumber: prNumber
-                            )
-                            return (index, notification)
+        return request
+    }
+
+    private func handleFetchErrorResponse(data: Data, statusCode: Int, token: String) async {
+        let apiError = try? JSONDecoder().decode(GitHubAPIErrorResponse.self, from: data)
+        let apiMessage = apiError?.message ?? "HTTP \(statusCode)"
+        let docURL = apiError?.documentationURL ?? "n/a"
+
+        print("GitHub API error message: \(apiMessage)")
+        print("Docs URL: \(docURL)")
+
+        let authProbe = await probeAuthenticatedUser(token: token)
+        emptyStateMessage = "GitHub error: \(apiMessage)\n\(authProbe)"
+    }
+
+    private func mapToInboxNotifications(_ apiResponse: [GitHubNotification], token: String) async -> [InboxNotification] {
+        await withTaskGroup(of: (Int, InboxNotification).self) { group in
+            for (index, apiNotif) in apiResponse.enumerated() {
+                group.addTask {
+                    let kind = await self.fetchSubjectKind(for: apiNotif.subject, token: token)
+
+                    let formatter = ISO8601DateFormatter()
+                    let date = formatter.date(from: apiNotif.updatedAt) ?? Date()
+                    let relativeFormatter = RelativeDateTimeFormatter()
+                    relativeFormatter.unitsStyle = .abbreviated
+                    let timeString = relativeFormatter.localizedString(for: date, relativeTo: Date())
+
+                    let parts = apiNotif.repository.fullName.split(separator: "/")
+                    let owner = !parts.isEmpty ? String(parts[0]) : nil
+                    let childRepoName = parts.count > 1 ? String(parts[1]) : ""
+
+                    var prNumber: Int?
+                    if await kind.isPullRequest, let urlStr = apiNotif.subject.url, let url = URL(string: urlStr) {
+                        if let numStr = url.lastPathComponent.components(separatedBy: "?").first, let num = Int(numStr) {
+                            prNumber = num
                         }
                     }
-                    
-                    var results = [(Int, InboxNotification)]()
-                    for await result in group {
-                        results.append(result)
-                    }
-                    
-                    return results.sorted(by: { $0.0 < $1.0 }).map { $0.1 }
+
+                    let notification = InboxNotification(
+                        id: apiNotif.id,
+                        kind: kind,
+                        title: apiNotif.subject.title,
+                        time: timeString,
+                        repo: childRepoName,
+                        isUnread: apiNotif.unread,
+                        owner: owner,
+                        prNumber: prNumber
+                    )
+                    return (index, notification)
                 }
-                
-                self.notifications = mappedNotifications
-                
-                if self.notifications.isEmpty {
-                    let authProbe = await probeAuthenticatedUser(token: token)
-                    emptyStateMessage = """
-                    No notifications found.
-                    \(authProbe)
-                    Possible causes: inbox is truly empty, notifications already cleared/read, or token/account context differs.
-                    """
-                } else {
-                    emptyStateMessage = "No notifications found."
-                }
-                
-            } catch {
-                printDecodingError(error, rawData: data)
-                emptyStateMessage = "Failed to decode notifications. Check debug logs."
-                self.notifications = []
             }
-        } catch {
-            print("Network error while fetching notifications: \(error)")
-            emptyStateMessage = "Network error: \(error.localizedDescription)"
-            self.notifications = []
+
+            var results = [(Int, InboxNotification)]()
+            for await result in group {
+                results.append(result)
+            }
+
+            return results.sorted(by: { $0.0 < $1.0 }).map { $0.1 }
         }
     }
-    
+
     private func fetchSubjectKind(for subject: GitHubNotification.Subject, token: String) async -> NotificationKind {
         let isPR = subject.type == "PullRequest"
         let isIssue = subject.type == "Issue"
-        
+
         guard isPR || isIssue else {
             return .openIssue
         }
-        
+
         guard let urlString = subject.url, let url = URL(string: urlString) else {
             let state = subject.state?.lowercased() ?? "open"
             if isPR {
@@ -350,23 +356,23 @@ final class InboxViewModel: ObservableObject {
                 return (state == "closed") ? .closedIssue : .openIssue
             }
         }
-        
+
         var request = URLRequest(url: url)
         request.httpMethod = "GET"
         request.setValue("Bearer \(token)", forHTTPHeaderField: "Authorization")
         request.setValue("application/vnd.github+json", forHTTPHeaderField: "Accept")
         request.setValue("GitMate-App", forHTTPHeaderField: "User-Agent")
         request.setValue("2022-11-28", forHTTPHeaderField: "X-GitHub-Api-Version")
-        
+
         do {
             let (data, response) = try await URLSession.shared.data(for: request)
             guard let httpResponse = response as? HTTPURLResponse, httpResponse.statusCode == 200 else {
                 return isPR ? .openPR : .openIssue
             }
-            
+
             let detail = try JSONDecoder().decode(GitHubSubjectDetail.self, from: data)
             let state = detail.state?.lowercased() ?? "open"
-            
+
             if isPR {
                 if detail.draft == true {
                     return .draftPR
@@ -384,24 +390,24 @@ final class InboxViewModel: ObservableObject {
             return isPR ? .openPR : .openIssue
         }
     }
-    
+
     private func logHTTPResponse(_ response: HTTPURLResponse, data: Data) {
         print("HTTP Status Code: \(response.statusCode)")
         print("Response Headers:")
         for (key, value) in response.allHeaderFields {
             print("   \(key): \(value)")
         }
-        
+
         if let bodyString = String(data: data, encoding: .utf8) {
             print("Raw Response Body:\n\(bodyString)")
         } else {
             print("Raw Response Body: <non-UTF8 data, \(data.count) bytes>")
         }
     }
-    
+
     private func printDecodingError(_ error: Error, rawData: Data) {
         print("JSON Decoding Error: \(error)")
-        
+
         switch error {
         case let DecodingError.typeMismatch(type, context):
             print("typeMismatch(\(type)): \(context.debugDescription)")
@@ -418,22 +424,34 @@ final class InboxViewModel: ObservableObject {
         default:
             break
         }
-        
+
         if let bodyString = String(data: rawData, encoding: .utf8) {
             print("Raw body at decode failure:\n\(bodyString)")
         }
     }
-    
+
     private func classifyToken(_ token: String) -> String {
-        if token.hasPrefix("github_pat_") { return "fine-grained PAT" }
-        if token.hasPrefix("ghp_") { return "classic PAT" }
-        if token.hasPrefix("gho_") { return "OAuth app token" }
-        if token.hasPrefix("ghu_") { return "GitHub App user-to-server token" }
-        if token.hasPrefix("ghs_") { return "GitHub App installation token" }
-        if token.hasPrefix("ghr_") { return "GitHub refresh token (not valid as API bearer token)" }
+        if token.hasPrefix("github_pat_") {
+            return "fine-grained PAT"
+        }
+        if token.hasPrefix("ghp_") {
+            return "classic PAT"
+        }
+        if token.hasPrefix("gho_") {
+            return "OAuth app token"
+        }
+        if token.hasPrefix("ghu_") {
+            return "GitHub App user-to-server token"
+        }
+        if token.hasPrefix("ghs_") {
+            return "GitHub App installation token"
+        }
+        if token.hasPrefix("ghr_") {
+            return "GitHub refresh token (not valid as API bearer token)"
+        }
         return "unknown token type"
     }
-    
+
     private func printTokenSupportHint(for tokenType: String) {
         switch tokenType {
         case "classic PAT":
@@ -450,31 +468,31 @@ final class InboxViewModel: ObservableObject {
             print("unknown token prefix; verify token origin and permissions.")
         }
     }
-    
+
     private func probeAuthenticatedUser(token: String) async -> String {
         guard let url = URL(string: "https://api.github.com/user") else {
             return "Auth probe failed: invalid /user URL."
         }
-        
+
         var request = URLRequest(url: url)
         request.httpMethod = "GET"
         request.setValue("Bearer \(token)", forHTTPHeaderField: "Authorization")
         request.setValue("application/vnd.github+json", forHTTPHeaderField: "Accept")
         request.setValue("GitMate-App", forHTTPHeaderField: "User-Agent")
         request.setValue("2022-11-28", forHTTPHeaderField: "X-GitHub-Api-Version")
-        
+
         do {
             let (data, response) = try await URLSession.shared.data(for: request)
             guard let http = response as? HTTPURLResponse else {
                 return "Auth probe failed: non-HTTP response."
             }
-            
+
             print("/user probe status: \(http.statusCode)")
             print("/user headers: \(http.allHeaderFields)")
             if let body = String(data: data, encoding: .utf8) {
                 print("/user body: \(body)")
             }
-            
+
             if http.statusCode == 200 {
                 let user = try? JSONDecoder().decode(GitHubAuthenticatedUser.self, from: data)
                 let login = user?.login ?? "unknown"
@@ -495,7 +513,7 @@ struct GitHubSubjectDetail: Codable {
     let merged: Bool?
     let draft: Bool?
     let mergedAt: String?
-    
+
     enum CodingKeys: String, CodingKey {
         case state, merged, draft
         case mergedAt = "merged_at"
@@ -517,7 +535,7 @@ enum NotificationKind {
     case closedPR
     case openIssue
     case closedIssue
-    
+
     var iconName: String {
         switch self {
         case .openPR, .draftPR, .mergedPR, .closedPR:
@@ -526,7 +544,7 @@ enum NotificationKind {
             return "issue_icon"
         }
     }
-    
+
     var themeColor: Color {
         switch self {
         case .openPR, .openIssue:
@@ -539,7 +557,7 @@ enum NotificationKind {
             return Color(red: 0.86, green: 0.21, blue: 0.27)
         }
     }
-    
+
     var isPullRequest: Bool {
         switch self {
         case .openPR, .draftPR, .mergedPR, .closedPR:
@@ -548,7 +566,7 @@ enum NotificationKind {
             return false
         }
     }
-    
+
     var isIssue: Bool {
         switch self {
         case .openIssue, .closedIssue:
@@ -572,15 +590,14 @@ struct InboxNotification: Identifiable {
 
 struct InboxCardView: View {
     let notification: InboxNotification
-    
+
     var body: some View {
         HStack(alignment: .top, spacing: 16) {
-            
             ZStack {
                 RoundedRectangle(cornerRadius: 10, style: .continuous)
                     .fill(notification.kind.themeColor.opacity(0.15))
                     .frame(width: 36, height: 36)
-                
+
                 Image(notification.kind.iconName)
                     .renderingMode(.template)
                     .resizable()
@@ -588,22 +605,22 @@ struct InboxCardView: View {
                     .foregroundStyle(notification.kind.themeColor)
                     .frame(width: 20, height: 20)
             }
-            
+
             VStack(alignment: .leading, spacing: 6) {
                 HStack {
                     Text(notification.title)
                         .font(.system(size: 16, weight: notification.isUnread ? .semibold : .regular, design: .rounded))
                         .foregroundStyle(notification.isUnread ? .white : .white.opacity(0.7))
                         .lineLimit(1)
-                    
+
                     Spacer()
-                    
+
                     Text(notification.time)
                         .font(.system(size: 12))
                         .foregroundStyle(notification.isUnread ? Color.cyan : .white.opacity(0.5))
                         .fixedSize()
                 }
-                
+
                 HStack(spacing: 8) {
                     Text(notification.repo.uppercased())
                         .font(.system(size: 10, weight: .bold))
@@ -612,11 +629,11 @@ struct InboxCardView: View {
                         .padding(.vertical, 4)
                         .background(
                             notification.isUnread
-                            ? Color.cyan.opacity(0.15)
-                            : Color.white.opacity(0.08)
+                                ? Color.cyan.opacity(0.15)
+                                : Color.white.opacity(0.08)
                         )
                         .clipShape(RoundedRectangle(cornerRadius: 6))
-                    
+
                     if notification.isUnread {
                         Circle()
                             .fill(Color.cyan)
@@ -631,8 +648,8 @@ struct InboxCardView: View {
             RoundedRectangle(cornerRadius: 20, style: .continuous)
                 .fill(
                     notification.isUnread
-                    ? Color(red: 0.12, green: 0.16, blue: 0.22)
-                    : Color(red: 0.18, green: 0.22, blue: 0.29)
+                        ? Color(red: 0.12, green: 0.16, blue: 0.22)
+                        : Color(red: 0.18, green: 0.22, blue: 0.29)
                 )
         )
         .overlay(
@@ -655,8 +672,8 @@ struct InboxCardView: View {
             RoundedRectangle(cornerRadius: 20, style: .continuous)
                 .stroke(
                     notification.isUnread
-                    ? Color.cyan.opacity(0.5)
-                    : Color.white.opacity(0.1),
+                        ? Color.cyan.opacity(0.5)
+                        : Color.white.opacity(0.1),
                     lineWidth: notification.isUnread ? 1.5 : 0.5
                 )
         )

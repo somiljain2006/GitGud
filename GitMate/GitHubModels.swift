@@ -23,7 +23,7 @@ struct GitHubRepo: Codable {
     let forksCount: Int
     let `private`: Bool
     let updatedAt: String
-    
+
     enum CodingKeys: String, CodingKey {
         case name
         case description
@@ -35,14 +35,38 @@ struct GitHubRepo: Codable {
     }
 }
 
+struct GitHubEventRepo: Codable {
+    let name: String
+}
+
 struct GitHubEvent: Codable {
     let id: String
     let type: String
     let created_at: String
-    let repo: EventRepo
-    
-    struct EventRepo: Codable {
-        let name: String
+    let repo: GitHubEventRepo
+}
+
+struct GitHubNotificationSubject: Codable {
+    let title: String
+    let url: String?
+    let latestCommentUrl: String?
+    let type: String
+    let state: String?
+
+    enum CodingKeys: String, CodingKey {
+        case title
+        case url
+        case latestCommentUrl = "latest_comment_url"
+        case type
+        case state
+    }
+}
+
+struct GitHubNotificationRepo: Codable {
+    let fullName: String
+
+    enum CodingKeys: String, CodingKey {
+        case fullName = "full_name"
     }
 }
 
@@ -56,7 +80,7 @@ struct GitHubNotification: Codable {
     let repository: Repo
     let url: String?
     let subscriptionUrl: String?
-    
+
     enum CodingKeys: String, CodingKey {
         case id
         case unread
@@ -69,36 +93,15 @@ struct GitHubNotification: Codable {
         case subscriptionUrl = "subscription_url"
     }
 
-    struct Subject: Codable {
-        let title: String
-        let url: String?
-        let latestCommentUrl: String?
-        let type: String
-        let state: String?
-        
-        enum CodingKeys: String, CodingKey {
-            case title
-            case url
-            case latestCommentUrl = "latest_comment_url"
-            case type
-            case state
-        }
-    }
-
-    struct Repo: Codable {
-        let fullName: String
-
-        enum CodingKeys: String, CodingKey {
-            case fullName = "full_name"
-        }
-    }
+    typealias Subject = GitHubNotificationSubject
+    typealias Repo = GitHubNotificationRepo
 }
 
 struct GitHubAPIErrorResponse: Codable {
     let message: String
     let documentationURL: String?
     let status: String?
-    
+
     enum CodingKeys: String, CodingKey {
         case message
         case documentationURL = "documentation_url"
@@ -114,31 +117,31 @@ struct GitHubSearchResponse: Codable {
     let items: [GitHubSearchItem]
 }
 
+struct GitHubSearchPullRequestRef: Codable {
+    let url: String?
+    let mergedAt: String?
+
+    enum CodingKeys: String, CodingKey {
+        case url
+        case mergedAt = "merged_at"
+    }
+}
+
 struct GitHubSearchItem: Codable {
     let title: String
     let state: String
     let comments: Int
     let updatedAt: String
     let repositoryUrl: String
-    let pullRequest: PullRequestRef?
+    let pullRequest: GitHubSearchPullRequestRef?
     let draft: Bool?
     let number: Int
-    
+
     enum CodingKeys: String, CodingKey {
         case title, state, comments, draft, number
         case updatedAt = "updated_at"
         case repositoryUrl = "repository_url"
         case pullRequest = "pull_request"
-    }
-
-    struct PullRequestRef: Codable {
-        let url: String?
-        let mergedAt: String?
-        
-        enum CodingKeys: String, CodingKey {
-            case url
-            case mergedAt = "merged_at"
-        }
     }
 }
 
@@ -181,7 +184,7 @@ struct PullRequestDetail: Codable, Identifiable {
 struct GitHubUser: Codable {
     let login: String
     let avatarUrl: String
-    
+
     enum CodingKeys: String, CodingKey {
         case login
         case avatarUrl = "avatar_url"
@@ -205,8 +208,10 @@ struct PullRequestFile: Codable, Identifiable {
     let deletions: Int
     let changes: Int
     let patch: String?
-    
-    var id: String { filename }
+
+    var id: String {
+        filename
+    }
 }
 
 struct GitHubFileContent: Codable {
@@ -215,7 +220,7 @@ struct GitHubFileContent: Codable {
     let sha: String
     let content: String
     let encoding: String
-    
+
     var decodedContent: String? {
         guard encoding == "base64" else { return nil }
         let stripped = content.components(separatedBy: .whitespacesAndNewlines).joined()
@@ -236,21 +241,35 @@ enum FileUpdateError: Error, LocalizedError {
 
     var errorDescription: String? {
         switch self {
-        case .missingToken:      return "No GitHub token. Please sign in again."
-        case .unauthorized:      return "Authentication failed. Check your token."
-        case .forbidden:         return "You don't have permission to modify this repository."
-        case .notFound:          return "File or repository not found."
-        case .conflict:          return "The file was changed remotely. Reload the file before committing."
-        case .network(let err):  return "Network error: \(err.localizedDescription)"
-        case .badResponse(let c): return "Unexpected response from GitHub (HTTP \(c))."
-        case .encodingFailed:    return "Failed to encode the file content."
+        case .missingToken: return "No GitHub token. Please sign in again."
+        case .unauthorized: return "Authentication failed. Check your token."
+        case .forbidden: return "You don't have permission to modify this repository."
+        case .notFound: return "File or repository not found."
+        case .conflict: return "The file was changed remotely. Reload the file before committing."
+        case let .network(err): return "Network error: \(err.localizedDescription)"
+        case let .badResponse(statusCode): return "Unexpected response from GitHub (HTTP \(statusCode))."
+        case .encodingFailed: return "Failed to encode the file content."
         }
     }
 }
 
 struct PullRequestReference: Identifiable {
-    var id: String { "\(owner)/\(repository)/\(number)" }
+    var id: String {
+        "\(owner)/\(repository)/\(number)"
+    }
+
     let owner: String
     let repository: String
     let number: Int
+}
+
+struct FileUpdateRequest {
+    let owner: String
+    let repo: String
+    let path: String
+    let branch: String
+    let sha: String
+    let content: String
+    let commitMessage: String
+    let token: String?
 }

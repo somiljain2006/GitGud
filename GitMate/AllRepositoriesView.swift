@@ -10,16 +10,16 @@ import SwiftUI
 struct AllRepositoriesView: View {
     let username: String
     let pinnedRepos: [PinnedRepo]
-    
+
     @Environment(\.dismiss) private var dismiss
     @State private var allRepos: [StandardRepo] = []
     @State private var isLoading: Bool = true
-    
+
     var body: some View {
         NavigationView {
             ZStack {
                 Color(red: 0.05, green: 0.09, blue: 0.12).ignoresSafeArea()
-                
+
                 ScrollView {
                     VStack(alignment: .leading, spacing: 24) {
                         if !pinnedRepos.isEmpty {
@@ -27,18 +27,18 @@ struct AllRepositoriesView: View {
                                 Text("Pinned Repositories")
                                     .font(.title3.bold())
                                     .foregroundStyle(.white)
-                                
+
                                 ForEach(pinnedRepos) { repo in
                                     PinnedRepoCard(repo: repo)
                                 }
                             }
                         }
-                        
+
                         VStack(alignment: .leading, spacing: 12) {
                             Text("All Repositories")
                                 .font(.title3.bold())
                                 .foregroundStyle(.white)
-                            
+
                             if isLoading {
                                 ProgressView()
                                     .tint(.cyan)
@@ -52,14 +52,14 @@ struct AllRepositoriesView: View {
                                         Text(repo.name)
                                             .font(.headline)
                                             .foregroundStyle(.cyan)
-                                        
+
                                         if let description = repo.description {
                                             Text(description)
                                                 .font(.subheadline)
                                                 .foregroundStyle(.gray)
                                                 .lineLimit(2)
                                         }
-                                        
+
                                         if let language = repo.language {
                                             Text(language)
                                                 .font(.caption)
@@ -94,15 +94,15 @@ struct AllRepositoriesView: View {
         }
         .preferredColorScheme(.dark)
     }
-    
+
     private func fetchAllRepos() async {
         let urlString = "https://api.github.com/users/\(username)/repos?sort=updated&per_page=100"
         guard let url = URL(string: urlString) else { return }
-        
+
         do {
             let (data, _) = try await URLSession.shared.data(from: url)
             let decodedRepos = try JSONDecoder().decode([StandardRepo].self, from: data)
-            
+
             await MainActor.run {
                 self.allRepos = decodedRepos
                 self.isLoading = false

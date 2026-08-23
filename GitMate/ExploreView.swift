@@ -4,8 +4,8 @@
 //  Created by somil jain on 04/08/26.
 //
 
-import SwiftUI
 import Combine
+import SwiftUI
 
 struct SearchRepositoriesResponse: Codable {
     let items: [SearchRepoItem]
@@ -138,28 +138,28 @@ final class ExploreViewModel: ObservableObject {
     func fetchData() async {
         isLoading = true
         errorMessage = nil
-        
+
         async let trending = fetchTrendingRepos()
         async let activities = fetchExploreActivities()
         async let suggested = fetchSuggestedRepo()
-        
+
         do {
-            let (fetchedTrending, fetchedActivities, fetchedSuggested) = try await (trending, activities, suggested)
-            self.trendingRepos = fetchedTrending
-            self.exploreActivities = fetchedActivities
-            self.suggestedRepo = fetchedSuggested
+            let (fetchedTrending, fetchedActivities, fetchedSuggested) = try await(trending, activities, suggested)
+            trendingRepos = fetchedTrending
+            exploreActivities = fetchedActivities
+            suggestedRepo = fetchedSuggested
         } catch {
-            self.errorMessage = error.localizedDescription
+            errorMessage = error.localizedDescription
             print("Explore Fetch Error: \(error)")
         }
-        
+
         isLoading = false
     }
-    
+
     func toggleStar(owner: String, repo: String, isStarred: Bool) async -> Bool {
         let path = "/user/starred/\(owner)/\(repo)"
         let method = isStarred ? "PUT" : "DELETE"
-        
+
         do {
             _ = try await performAuthenticatedRequest(path: path, method: method)
             return true
@@ -168,28 +168,30 @@ final class ExploreViewModel: ObservableObject {
             return false
         }
     }
-    
+
     private func fetchSuggestedRepo() async throws -> TrendingRepo? {
         let techStackKeywords = ["swiftui", "ios", "swift", "combine", "coreml", "arkit"]
         let randomKeyword = techStackKeywords.randomElement() ?? "swift"
-        
-        var components = URLComponents(string: "https://api.github.com/search/repositories")!
+
+        guard var components = URLComponents(string: "https://api.github.com/search/repositories") else {
+            throw URLError(.badURL)
+        }
         components.queryItems = [
             URLQueryItem(name: "q", value: "\(randomKeyword) language:swift"),
             URLQueryItem(name: "sort", value: "stars"),
             URLQueryItem(name: "order", value: "desc"),
-            URLQueryItem(name: "per_page", value: "30")
+            URLQueryItem(name: "per_page", value: "30"),
         ]
-        
+
         guard let urlString = components.url?.absoluteString else {
             throw URLError(.badURL)
         }
-        
+
         let data = try await performAuthenticatedRequest(url: urlString)
         let response = try JSONDecoder().decode(SearchRepositoriesResponse.self, from: data)
-        
+
         guard let randomItem = response.items.randomElement() else { return nil }
-        
+
         return TrendingRepo(
             owner: randomItem.owner.login,
             name: randomItem.name,
@@ -207,22 +209,24 @@ final class ExploreViewModel: ObservableObject {
         let formatter = ISO8601DateFormatter()
         formatter.formatOptions = [.withFullDate]
         let dateString = formatter.string(from: sevenDaysAgo)
-        
-        var components = URLComponents(string: "https://api.github.com/search/repositories")!
+
+        guard var components = URLComponents(string: "https://api.github.com/search/repositories") else {
+            throw URLError(.badURL)
+        }
         components.queryItems = [
             URLQueryItem(name: "q", value: "pushed:>\(dateString) stars:>100"),
             URLQueryItem(name: "sort", value: "stars"),
             URLQueryItem(name: "order", value: "desc"),
-            URLQueryItem(name: "per_page", value: "10")
+            URLQueryItem(name: "per_page", value: "10"),
         ]
-        
+
         guard let urlString = components.url?.absoluteString else {
             throw URLError(.badURL)
         }
-        
+
         let data = try await performAuthenticatedRequest(url: urlString)
         let response = try JSONDecoder().decode(SearchRepositoriesResponse.self, from: data)
-        
+
         return response.items.map { item in
             TrendingRepo(
                 owner: item.owner.login,
@@ -240,13 +244,13 @@ final class ExploreViewModel: ObservableObject {
     private func fetchExploreActivities() async throws -> [ExploreActivity] {
         let username = session.githubUsername.trimmingCharacters(in: .whitespacesAndNewlines)
         guard !username.isEmpty else { return [] }
-        
+
         var events = await fetchEvents(path: "/users/\(username)/received_events", perPage: 20)
-        
+
         if events.isEmpty {
             events = await fetchContextualFallbackEvents(for: username)
         }
-        
+
         return events
             .deduplicatedByID()
             .sortedByCreationDateDescending()
@@ -269,73 +273,73 @@ final class ExploreViewModel: ObservableObject {
         async let organizations = fetchAuthenticatedOrganizations()
         async let starredRepositories = fetchStarredRepositories(for: username)
         async let ownEvents = fetchEvents(path: "/users/\(username)/events", perPage: 5)
-        
-        let context = await (
+
+        let context = await(
             followedUsers.prefix(10),
             watchedRepositories.prefix(5),
             organizations.prefix(5),
             starredRepositories.prefix(5),
             ownEvents
         )
-        
+
         return await withTaskGroup(of: [UserEvent].self) { group in
             for user in context.0 {
                 group.addTask {
                     await self.fetchEvents(path: "/users/\(user.login)/events/public", perPage: 3)
                 }
             }
-            
+
             for repository in context.1 {
                 group.addTask {
                     await self.fetchEvents(path: "/repos/\(repository.fullName)/events", perPage: 3)
                 }
             }
-            
+
             for organization in context.2 {
                 group.addTask {
                     await self.fetchEvents(path: "/users/\(username)/events/orgs/\(organization.login)", perPage: 3)
                 }
             }
-            
+
             for repository in context.3 {
                 group.addTask {
                     await self.fetchEvents(path: "/repos/\(repository.fullName)/events", perPage: 3)
                 }
             }
-            
+
             var events = context.4
             for await sourceEvents in group {
                 events.append(contentsOf: sourceEvents)
             }
-            
+
             return events
         }
     }
-    
+
     private func fetchFollowedUsers() async -> [FollowedUser] {
         await fetchDecoded(path: "/user/following", perPage: 10) ?? []
     }
-    
+
     private func fetchWatchedRepositories() async -> [FeedRepository] {
         await fetchDecoded(path: "/user/subscriptions", perPage: 5) ?? []
     }
-    
+
     private func fetchAuthenticatedOrganizations() async -> [FeedOrganization] {
         await fetchDecoded(path: "/user/orgs", perPage: 5) ?? []
     }
-    
+
     private func fetchStarredRepositories(for username: String) async -> [FeedRepository] {
         await fetchDecoded(path: "/users/\(username)/starred", perPage: 5) ?? []
     }
-    
+
     private func fetchEvents(path: String, perPage: Int) async -> [UserEvent] {
         await fetchDecoded(path: path, perPage: perPage) ?? []
     }
-    
+
     private func fetchDecoded<T: Decodable>(path: String, perPage: Int) async -> T? {
         do {
             let data = try await performAuthenticatedRequest(path: path, queryItems: [
-                URLQueryItem(name: "per_page", value: "\(perPage)")
+                URLQueryItem(name: "per_page", value: "\(perPage)"),
             ])
             return try JSONDecoder().decode(T.self, from: data)
         } catch {
@@ -350,34 +354,35 @@ final class ExploreViewModel: ObservableObject {
         components.host = "api.github.com"
         components.path = path
         components.queryItems = queryItems.isEmpty ? nil : queryItems
-        
+
         guard let endpoint = components.url else { throw URLError(.badURL) }
         return try await performAuthenticatedRequest(url: endpoint, method: method)
     }
-    
+
     private func performAuthenticatedRequest(url urlString: String, method: String = "GET") async throws -> Data {
         guard let endpoint = URL(string: urlString) else { throw URLError(.badURL) }
         return try await performAuthenticatedRequest(url: endpoint, method: method)
     }
-    
+
     private func performAuthenticatedRequest(url: URL, method: String = "GET") async throws -> Data {
         var request = URLRequest(url: url)
         request.httpMethod = method
         request.addValue("application/vnd.github+json", forHTTPHeaderField: "Accept")
         request.addValue("2022-11-28", forHTTPHeaderField: "X-GitHub-Api-Version")
         request.addValue("GitGudApp", forHTTPHeaderField: "User-Agent")
-        
+
         if let token = session.savedAccessKey {
             request.addValue("Bearer \(token)", forHTTPHeaderField: "Authorization")
         }
-        
+
         let (data, response) = try await URLSession.shared.data(for: request)
-        
+
         guard let httpResponse = response as? HTTPURLResponse,
-              (200...299).contains(httpResponse.statusCode) else {
+              (200 ... 299).contains(httpResponse.statusCode)
+        else {
             throw URLError(.badServerResponse)
         }
-        
+
         return data
     }
 
@@ -391,7 +396,7 @@ final class ExploreViewModel: ObservableObject {
     private func formatTimeAgo(from isoString: String) -> String {
         let formatter = ISO8601DateFormatter()
         guard let date = formatter.date(from: isoString) else { return "recently" }
-        
+
         let relativeFormatter = RelativeDateTimeFormatter()
         relativeFormatter.unitsStyle = .abbreviated
         return relativeFormatter.localizedString(for: date, relativeTo: Date())
@@ -421,10 +426,10 @@ final class ExploreViewModel: ObservableObject {
         default: return .gray
         }
     }
-    
+
     private func extractActionDetail(from event: UserEvent) -> String? {
         guard let payload = event.payload else { return nil }
-        
+
         switch event.type {
         case "PushEvent":
             return payload.commits?.first?.message.components(separatedBy: "\n").first
@@ -447,7 +452,7 @@ private extension Array where Element == UserEvent {
             seenIDs.insert(event.id).inserted
         }
     }
-    
+
     func sortedByCreationDateDescending() -> [UserEvent] {
         sorted { $0.createdAt > $1.createdAt }
     }
@@ -456,7 +461,7 @@ private extension Array where Element == UserEvent {
 struct ExploreView: View {
     @StateObject var viewModel: ExploreViewModel
     @State private var isSearchPresented = false
-    
+
     private let activityCardHeight: CGFloat = 72
     private let activitySpacing: CGFloat = 14
     private let visibleCardCount: CGFloat = 3
@@ -468,15 +473,14 @@ struct ExploreView: View {
     var body: some View {
         ScrollView(showsIndicators: false) {
             VStack(alignment: .leading, spacing: 36) {
-                
                 VStack(alignment: .leading, spacing: 16) {
                     HStack {
                         Text("Trending This Week")
                             .font(.system(size: 26, weight: .bold, design: .rounded))
                             .foregroundStyle(.white)
-                        
+
                         Spacer()
-                        
+
                         Button {
                             isSearchPresented.toggle()
                         } label: {
@@ -488,7 +492,7 @@ struct ExploreView: View {
                                 .clipShape(Circle())
                         }
                     }
-                    
+
                     if viewModel.isLoading && viewModel.trendingRepos.isEmpty {
                         ProgressView()
                             .frame(maxWidth: .infinity)
@@ -510,7 +514,7 @@ struct ExploreView: View {
                         }
                     }
                 }
-                
+
                 VStack(alignment: .leading, spacing: 16) {
                     Text("Explore")
                         .font(.system(size: 26, weight: .bold, design: .rounded))
@@ -540,26 +544,27 @@ struct ExploreView: View {
                         )
                     }
                 }
-                
+
                 if viewModel.suggestedRepo != nil || viewModel.isLoading {
                     VStack(alignment: .leading, spacing: 32) {
                         Text("Suggested Repository")
                             .font(.system(size: 26, weight: .bold, design: .rounded))
                             .foregroundStyle(.white)
-                            
+
                         if viewModel.isLoading && viewModel.suggestedRepo == nil {
                             ProgressView()
                                 .frame(maxWidth: .infinity)
                                 .padding(.vertical, 40)
-                        } else if viewModel.suggestedRepo != nil {
-                            
+                        } else if let suggestedRepo = viewModel.suggestedRepo {
                             TrendingCardView(repo: Binding(
-                                get: { viewModel.suggestedRepo! },
+                                get: { viewModel.suggestedRepo ?? suggestedRepo },
                                 set: { viewModel.suggestedRepo = $0 }
                             )) { isStarred in
-                                await viewModel.toggleStar(
-                                    owner: viewModel.suggestedRepo!.owner,
-                                    repo: viewModel.suggestedRepo!.name,
+                                guard let currentRepo = viewModel.suggestedRepo else { return false }
+
+                                return await viewModel.toggleStar(
+                                    owner: currentRepo.owner,
+                                    repo: currentRepo.name,
                                     isStarred: isStarred
                                 )
                             }
@@ -585,34 +590,33 @@ struct ExploreView: View {
 
 struct TrendingCardView: View {
     @Binding var repo: TrendingRepo
-    
+
     var onToggleStar: ((Bool) async -> Bool)?
 
     var body: some View {
         VStack(alignment: .leading, spacing: 14) {
-            
             HStack(spacing: 10) {
                 Image(systemName: "square.3.layers.3d.down.right")
                     .resizable()
                     .scaledToFit()
                     .frame(width: 20, height: 20)
                     .foregroundStyle(Color.cyan)
-                
+
                 Text("\(repo.owner) / \(repo.name)")
                     .font(.system(size: 18, weight: .bold, design: .rounded))
                     .foregroundStyle(.white)
                     .lineLimit(1)
             }
-            
+
             Text(repo.description)
                 .font(.system(size: 14, weight: .regular))
                 .foregroundStyle(.white.opacity(0.7))
                 .lineLimit(2)
                 .lineSpacing(3)
                 .fixedSize(horizontal: false, vertical: true)
-            
+
             Spacer(minLength: 0)
-            
+
             VStack(alignment: .leading, spacing: 12) {
                 HStack(spacing: 16) {
                     HStack(spacing: 6) {
@@ -623,7 +627,7 @@ struct TrendingCardView: View {
                             .font(.system(size: 13, weight: .medium, design: .monospaced))
                             .foregroundStyle(.white.opacity(0.85))
                     }
-                    
+
                     HStack(spacing: 4) {
                         Image(systemName: "star")
                             .font(.system(size: 12))
@@ -631,7 +635,7 @@ struct TrendingCardView: View {
                             .font(.system(size: 13, weight: .medium, design: .monospaced))
                     }
                     .foregroundStyle(.white.opacity(0.85))
-                    
+
                     HStack(spacing: 4) {
                         Image(systemName: "tuningfork")
                             .font(.system(size: 12))
@@ -640,18 +644,18 @@ struct TrendingCardView: View {
                     }
                     .foregroundStyle(.white.opacity(0.85))
                 }
-                
+
                 Button {
                     let previousState = repo.isStarred
-                    
+
                     withAnimation(.spring(response: 0.3, dampingFraction: 0.6)) {
                         repo.isStarred.toggle()
                     }
-                    
+
                     Task {
                         if let onToggleStar = onToggleStar {
                             let success = await onToggleStar(repo.isStarred)
-                            
+
                             if !success {
                                 await MainActor.run {
                                     withAnimation(.spring(response: 0.3, dampingFraction: 0.6)) {
@@ -694,7 +698,7 @@ struct TrendingCardView: View {
                     LinearGradient(
                         colors: [
                             Color.white.opacity(0.08),
-                            Color.cyan.opacity(0.04)
+                            Color.cyan.opacity(0.04),
                         ],
                         startPoint: .topLeading,
                         endPoint: .bottomTrailing
@@ -713,7 +717,6 @@ struct ExploreActivityCard: View {
 
     var body: some View {
         HStack(alignment: .top, spacing: 14) {
-            
             AsyncImage(url: URL(string: activity.actorAvatar)) { image in
                 image
                     .resizable()
@@ -726,22 +729,22 @@ struct ExploreActivityCard: View {
             }
             .frame(width: 32, height: 32)
             .clipShape(Circle())
-            
+
             VStack(alignment: .leading, spacing: 6) {
                 HStack(alignment: .top) {
                     Text("\(Text(activity.actorName).fontWeight(.bold)) \(activity.actionText) \(Text(activity.targetRepo).fontWeight(.semibold).foregroundColor(.cyan))")
                         .font(.system(size: 14, design: .rounded))
                         .foregroundStyle(.white.opacity(0.7))
                         .lineLimit(2)
-                    
+
                     Spacer()
-                    
+
                     Text(activity.timeAgo)
                         .font(.system(size: 11))
                         .foregroundStyle(.white.opacity(0.4))
                         .lineLimit(1)
                 }
-                
+
                 if let description = activity.actionDetail {
                     Text(description)
                         .font(.system(size: 13))

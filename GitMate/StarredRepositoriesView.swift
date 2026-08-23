@@ -105,7 +105,8 @@ struct StarredRepositoryCard: View {
                     .foregroundStyle(.white)
 
                 if let description = repository.description,
-                   !description.isEmpty {
+                   !description.isEmpty
+                {
                     Text(description)
                         .font(.system(size: 14))
                         .foregroundStyle(.white.opacity(0.6))

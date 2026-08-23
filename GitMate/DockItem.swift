@@ -12,7 +12,7 @@ struct DockItem: View {
     let systemImage: String
     let isSelected: Bool
     let showDot: Bool
-    
+
     var body: some View {
         VStack(spacing: 4) {
             ZStack(alignment: .topTrailing) {
@@ -29,7 +29,7 @@ struct DockItem: View {
                         .offset(x: 7, y: -6)
                 }
             }
-            
+
             Text(title)
                 .font(.system(size: 11, weight: .semibold, design: .rounded))
                 .foregroundStyle(isSelected ? Color.cyan : Color.white.opacity(0.65))
@@ -51,7 +51,7 @@ struct DockItem: View {
                                     colors: [
                                         Color.white.opacity(0.35),
                                         Color.white.opacity(0.08),
-                                        Color.clear
+                                        Color.clear,
                                     ],
                                     startPoint: .topLeading,
                                     endPoint: .bottomTrailing

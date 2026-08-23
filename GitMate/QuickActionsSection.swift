@@ -26,7 +26,7 @@ struct QuickActionsSection: View {
             LazyVGrid(
                 columns: [
                     GridItem(.flexible(), spacing: 12),
-                    GridItem(.flexible(), spacing: 12)
+                    GridItem(.flexible(), spacing: 12),
                 ],
                 spacing: 12
             ) {

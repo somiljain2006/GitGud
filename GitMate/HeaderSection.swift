@@ -9,12 +9,12 @@ import SwiftUI
 
 struct HeaderSection: View {
     let avatarURL: String?
-    
+
     var body: some View {
         HStack {
             AsyncImage(url: URL(string: avatarURL ?? "")) { phase in
                 switch phase {
-                case .success(let image):
+                case let .success(image):
                     image
                         .resizable()
                         .scaledToFill()
@@ -42,10 +42,10 @@ struct HeaderSection: View {
                     .fill(.white.opacity(0.08))
                     .frame(width: 42, height: 42)
             )
-            
+
             Spacer()
-            
-            Button(action: {}) {
+
+            Button(action: {}, label: {
                 Image(systemName: "magnifyingglass")
                     .font(.system(size: 18, weight: .semibold))
                     .foregroundStyle(Color.cyan)
@@ -55,7 +55,7 @@ struct HeaderSection: View {
                         Circle()
                             .stroke(.white.opacity(0.12), lineWidth: 1)
                     )
-            }
+            })
             .buttonStyle(.plain)
         }
         .padding(.top, 8)

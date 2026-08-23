@@ -9,7 +9,7 @@ import SwiftUI
 
 struct GlassCard: View {
     var cornerRadius: CGFloat = 20
-    
+
     var body: some View {
         RoundedRectangle(cornerRadius: cornerRadius, style: .continuous)
             .fill(Color.white.opacity(0.08))
@@ -20,7 +20,7 @@ struct GlassCard: View {
                             colors: [
                                 Color.white.opacity(0.18),
                                 Color.white.opacity(0.06),
-                                Color.clear
+                                Color.clear,
                             ],
                             startPoint: .topLeading,
                             endPoint: .bottomTrailing

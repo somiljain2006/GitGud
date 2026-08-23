@@ -8,19 +8,18 @@
 import Foundation
 import SwiftUI
 
-// swiftlint:disable type_body_length
 struct GitHubService {
     private let graphQLService: GitHubGraphQLService
-    
+
     init(graphQLService: GitHubGraphQLService = GitHubGraphQLService()) {
         self.graphQLService = graphQLService
     }
-    
+
     func fetchUserAvatar(for username: String, token: String? = nil) async -> String? {
         let cleanUsername = username.trimmingCharacters(in: .whitespacesAndNewlines).replacingOccurrences(of: "@", with: "")
         guard !cleanUsername.isEmpty,
               let url = URL(string: "https://api.github.com/users/\(cleanUsername)") else { return nil }
-        
+
         var request = URLRequest(url: url)
         request.httpMethod = "GET"
         if let token = token, !token.isEmpty {
@@ -28,7 +27,7 @@ struct GitHubService {
         }
         request.addValue("application/vnd.github+json", forHTTPHeaderField: "Accept")
         request.addValue("GitGudApp", forHTTPHeaderField: "User-Agent")
-        
+
         do {
             let (data, response) = try await URLSession.shared.data(for: request)
             guard let httpResponse = response as? HTTPURLResponse, httpResponse.statusCode == 200 else { return nil }
@@ -39,24 +38,24 @@ struct GitHubService {
             return nil
         }
     }
-    
+
     func fetchRepositories(for username: String, token: String? = nil) async -> [PinnedRepo] {
         if let token = token, !token.isEmpty {
             if let pinned = await graphQLService.fetchPinnedRepositories(for: username, token: token), !pinned.isEmpty {
                 return pinned
             }
         }
-        
+
         return await fetchRecentReposREST(for: username)
     }
-    
+
     func fetchRecentActivity(for username: String) async -> [ActivityItem] {
         guard let url = URL(string: "https://api.github.com/users/\(username)/events/public?per_page=4") else { return [] }
-        
+
         do {
             let (data, _) = try await URLSession.shared.data(from: url)
             let decodedEvents = try JSONDecoder().decode([GitHubEvent].self, from: data)
-            
+
             return decodedEvents.map { event in
                 let mappedType = mapEventType(event.type)
                 return ActivityItem(
@@ -72,18 +71,18 @@ struct GitHubService {
             return []
         }
     }
-    
+
     func fetchMyWork(for username: String, token: String? = nil) async -> [WorkItem] {
         let cleanUsername = username
             .trimmingCharacters(in: .whitespacesAndNewlines)
             .replacingOccurrences(of: "@", with: "")
-        
+
         guard !cleanUsername.isEmpty else { return [] }
 
         async let issues = fetchItems(qualifier: "is:issue", username: cleanUsername, token: token)
         async let pullRequests = fetchItems(qualifier: "is:pull-request", username: cleanUsername, token: token)
 
-        let combinedItems = await (issues + pullRequests)
+        let combinedItems = await(issues + pullRequests)
 
         let topItems = combinedItems
             .sorted { $0.updatedAt > $1.updatedAt }
@@ -133,25 +132,25 @@ struct GitHubService {
             )
         }
     }
-    
+
     func fetchQuickActions(for username: String, token: String?) async -> [QuickAction] {
         await graphQLService.fetchQuickActions(for: username, token: token)
     }
-    
+
     func fetchUserReadme(for username: String, token: String? = nil) async -> String? {
         let cleanUsername = username.trimmingCharacters(in: .whitespacesAndNewlines).replacingOccurrences(of: "@", with: "")
         guard !cleanUsername.isEmpty,
               let url = URL(string: "https://api.github.com/repos/\(cleanUsername)/\(cleanUsername)/readme") else { return nil }
-        
+
         var request = URLRequest(url: url)
         request.httpMethod = "GET"
         if let token = token, !token.isEmpty {
             request.addValue("Bearer \(token)", forHTTPHeaderField: "Authorization")
         }
-        
+
         request.addValue("application/vnd.github.html", forHTTPHeaderField: "Accept")
         request.addValue("GitGudApp", forHTTPHeaderField: "User-Agent")
-        
+
         do {
             let (data, response) = try await URLSession.shared.data(for: request)
             guard let httpResponse = response as? HTTPURLResponse, httpResponse.statusCode == 200 else { return nil }
@@ -161,27 +160,27 @@ struct GitHubService {
             return nil
         }
     }
-    
+
     func fetchUserStats(for username: String, token: String? = nil) async -> (followers: Int, following: Int)? {
         let cleanUsername = username.trimmingCharacters(in: .whitespacesAndNewlines).replacingOccurrences(of: "@", with: "")
         guard !cleanUsername.isEmpty,
               let url = URL(string: "https://api.github.com/users/\(cleanUsername)") else { return nil }
-        
+
         var request = URLRequest(url: url)
         request.httpMethod = "GET"
         if let token = token, !token.isEmpty {
             request.addValue("Bearer \(token)", forHTTPHeaderField: "Authorization")
         }
-        
+
         do {
             let (data, response) = try await URLSession.shared.data(for: request)
             guard let httpResponse = response as? HTTPURLResponse, httpResponse.statusCode == 200 else { return nil }
-            
+
             struct StatsResponse: Codable {
                 let followers: Int
                 let following: Int
             }
-            
+
             let decoded = try JSONDecoder().decode(StatsResponse.self, from: data)
             return (decoded.followers, decoded.following)
         } catch {
@@ -189,21 +188,21 @@ struct GitHubService {
             return nil
         }
     }
-    
+
     func fetchMyIssues(
         for username: String,
         token: String?
     ) async -> [MyIssue] {
         return await graphQLService.fetchMyIssues(for: username, token: token)
     }
-    
+
     func fetchMyPullRequests(
         for username: String,
         token: String?
     ) async -> [MyPullRequest] {
         return await graphQLService.fetchMyPullRequests(for: username, token: token)
     }
-    
+
     func fetchMyDiscussions(
         for username: String,
         token: String?
@@ -213,7 +212,7 @@ struct GitHubService {
             token: token
         )
     }
-    
+
     func fetchStarredRepositories(
         for username: String,
         token: String?
@@ -223,7 +222,7 @@ struct GitHubService {
             token: token
         )
     }
-    
+
     func fetchPullRequestDetail(
         owner: String,
         repo: String,
@@ -231,7 +230,7 @@ struct GitHubService {
         token: String?
     ) async -> PullRequestDetail? {
         guard let url = URL(string: "https://api.github.com/repos/\(owner)/\(repo)/pulls/\(number)") else { return nil }
-        
+
         var request = URLRequest(url: url)
         request.httpMethod = "GET"
         if let token = token, !token.isEmpty {
@@ -239,7 +238,7 @@ struct GitHubService {
         }
         request.addValue("application/vnd.github+json", forHTTPHeaderField: "Accept")
         request.addValue("GitGudApp", forHTTPHeaderField: "User-Agent")
-        
+
         do {
             let (data, response) = try await URLSession.shared.data(for: request)
             guard let httpResponse = response as? HTTPURLResponse, httpResponse.statusCode == 200 else { return nil }
@@ -249,7 +248,7 @@ struct GitHubService {
             return nil
         }
     }
-    
+
     func fetchPullRequestFiles(
         owner: String,
         repo: String,
@@ -257,7 +256,7 @@ struct GitHubService {
         token: String?
     ) async -> [PullRequestFile] {
         guard let url = URL(string: "https://api.github.com/repos/\(owner)/\(repo)/pulls/\(number)/files") else { return [] }
-        
+
         var request = URLRequest(url: url)
         request.httpMethod = "GET"
         if let token = token, !token.isEmpty {
@@ -265,7 +264,7 @@ struct GitHubService {
         }
         request.addValue("application/vnd.github+json", forHTTPHeaderField: "Accept")
         request.addValue("GitGudApp", forHTTPHeaderField: "User-Agent")
-        
+
         do {
             let (data, response) = try await URLSession.shared.data(for: request)
             guard let httpResponse = response as? HTTPURLResponse, httpResponse.statusCode == 200 else { return [] }
@@ -306,23 +305,14 @@ struct GitHubService {
         }
     }
 
-    func updateFile(
-        owner: String,
-        repo: String,
-        path: String,
-        branch: String,
-        sha: String,
-        content: String,
-        commitMessage: String,
-        token: String?
-    ) async -> Result<Void, FileUpdateError> {
-        guard let token = token, !token.isEmpty else { return .failure(.missingToken) }
+    func updateFile(req: FileUpdateRequest) async -> Result<Void, FileUpdateError> {
+        guard let token = req.token, !token.isEmpty else { return .failure(.missingToken) }
 
-        guard let contentData = content.data(using: .utf8) else { return .failure(.encodingFailed) }
+        guard let contentData = req.content.data(using: .utf8) else { return .failure(.encodingFailed) }
         let base64Content = contentData.base64EncodedString()
 
-        let encodedPath = path.addingPercentEncoding(withAllowedCharacters: .urlPathAllowed) ?? path
-        guard let url = URL(string: "https://api.github.com/repos/\(owner)/\(repo)/contents/\(encodedPath)") else {
+        let encodedPath = req.path.addingPercentEncoding(withAllowedCharacters: .urlPathAllowed) ?? req.path
+        guard let url = URL(string: "https://api.github.com/repos/\(req.owner)/\(req.repo)/contents/\(encodedPath)") else {
             return .failure(.badResponse(0))
         }
 
@@ -334,10 +324,10 @@ struct GitHubService {
         request.addValue("application/json", forHTTPHeaderField: "Content-Type")
 
         let body: [String: Any] = [
-            "message": commitMessage,
+            "message": req.commitMessage,
             "content": base64Content,
-            "sha": sha,
-            "branch": branch
+            "sha": req.sha,
+            "branch": req.branch,
         ]
         do {
             request.httpBody = try JSONSerialization.data(withJSONObject: body)
@@ -347,27 +337,31 @@ struct GitHubService {
 
         do {
             let (_, response) = try await URLSession.shared.data(for: request)
-            guard let httpResponse = response as? HTTPURLResponse else { return .failure(.badResponse(0)) }
-            switch httpResponse.statusCode {
-            case 200, 201: return .success(())
-            case 401: return .failure(.unauthorized)
-            case 403: return .failure(.forbidden)
-            case 404: return .failure(.notFound)
-            case 409: return .failure(.conflict)
-            default:  return .failure(.badResponse(httpResponse.statusCode))
-            }
+            return handleFileUpdateResponse(response)
         } catch {
             return .failure(.network(error))
         }
     }
 
+    private func handleFileUpdateResponse(_ response: URLResponse?) -> Result<Void, FileUpdateError> {
+        guard let httpResponse = response as? HTTPURLResponse else { return .failure(.badResponse(0)) }
+        switch httpResponse.statusCode {
+        case 200, 201: return .success(())
+        case 401: return .failure(.unauthorized)
+        case 403: return .failure(.forbidden)
+        case 404: return .failure(.notFound)
+        case 409: return .failure(.conflict)
+        default: return .failure(.badResponse(httpResponse.statusCode))
+        }
+    }
+
     private func fetchRecentReposREST(for username: String) async -> [PinnedRepo] {
         guard let url = URL(string: "https://api.github.com/users/\(username)/repos?sort=updated&per_page=4") else { return [] }
-        
+
         do {
             let (data, _) = try await URLSession.shared.data(from: url)
             let decodedRepos = try JSONDecoder().decode([GitHubRepo].self, from: data)
-            
+
             return decodedRepos.map { repo in
                 PinnedRepo(
                     name: repo.name,
@@ -383,31 +377,31 @@ struct GitHubService {
             return []
         }
     }
-    
+
     private func fetchItems(qualifier: String, username: String, token: String?) async -> [GitHubSearchItem] {
         var components = URLComponents(string: "https://api.github.com/search/issues")
         components?.queryItems = [
             URLQueryItem(name: "q", value: "involves:\(username) \(qualifier)"),
             URLQueryItem(name: "sort", value: "updated"),
             URLQueryItem(name: "order", value: "desc"),
-            URLQueryItem(name: "per_page", value: "5")
+            URLQueryItem(name: "per_page", value: "5"),
         ]
 
         guard let url = components?.url else { return [] }
 
         var request = URLRequest(url: url)
         request.httpMethod = "GET"
-        
+
         if let token = token, !token.isEmpty {
             request.addValue("Bearer \(token)", forHTTPHeaderField: "Authorization")
         }
-        
+
         request.addValue("application/vnd.github+json", forHTTPHeaderField: "Accept")
         request.addValue("GitGudApp", forHTTPHeaderField: "User-Agent")
 
         do {
             let (data, response) = try await URLSession.shared.data(for: request)
-            
+
             guard let httpResponse = response as? HTTPURLResponse, httpResponse.statusCode == 200 else {
                 return []
             }
@@ -419,15 +413,21 @@ struct GitHubService {
             return []
         }
     }
-    
-    private func mapEventType(_ type: String) -> (title: String, icon: String, color: Color) {
+
+    struct EventTypeDisplay {
+        let title: String
+        let icon: String
+        let color: Color
+    }
+
+    private func mapEventType(_ type: String) -> EventTypeDisplay {
         switch type {
-        case "PushEvent": return ("Pushed code", "arrow.up.circle.fill", .cyan)
-        case "PullRequestEvent": return ("Pull Request", "arrow.triangle.branch", .mint)
-        case "IssuesEvent": return ("Issue updated", "exclamationmark.circle", .orange)
-        case "WatchEvent": return ("Starred repository", "star.fill", .yellow)
-        case "ForkEvent": return ("Forked repository", "arrow.triangle.merge", .blue)
-        default: return ("Activity update", "bell.fill", .gray)
+        case "PushEvent": return EventTypeDisplay(title: "Pushed code", icon: "arrow.up.circle.fill", color: .cyan)
+        case "PullRequestEvent": return EventTypeDisplay(title: "Pull Request", icon: "arrow.triangle.branch", color: .mint)
+        case "IssuesEvent": return EventTypeDisplay(title: "Issue updated", icon: "exclamationmark.circle", color: .orange)
+        case "WatchEvent": return EventTypeDisplay(title: "Starred repository", icon: "star.fill", color: .yellow)
+        case "ForkEvent": return EventTypeDisplay(title: "Forked repository", icon: "arrow.triangle.merge", color: .blue)
+        default: return EventTypeDisplay(title: "Activity update", icon: "bell.fill", color: .gray)
         }
     }
 }
@@ -443,7 +443,7 @@ struct GitHubIssueSearchItem: Codable {
     let state: String
     let body: String?
     let htmlURL: String
-    let repository: Repository
+    let repository: GitHubIssueSearchItemRepository
     let createdAt: String
     let updatedAt: String
 
@@ -458,12 +458,12 @@ struct GitHubIssueSearchItem: Codable {
         case createdAt = "created_at"
         case updatedAt = "updated_at"
     }
+}
 
-    struct Repository: Codable {
-        let fullName: String
+struct GitHubIssueSearchItemRepository: Codable {
+    let fullName: String
 
-        enum CodingKeys: String, CodingKey {
-            case fullName = "full_name"
-        }
+    enum CodingKeys: String, CodingKey {
+        case fullName = "full_name"
     }
 }

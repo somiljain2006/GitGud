@@ -5,14 +5,14 @@
 //  Created by somil jain on 23/08/26.
 //
 
+import Highlightr
 import SwiftUI
 import UIKit
-import Highlightr
 
 struct MultiLanguageCodeEditor: UIViewRepresentable {
     @Binding var text: String
     let filePath: String
-    
+
     var fontSize: CGFloat = 14
 
     func makeUIView(context: Context) -> UITextView {
@@ -44,12 +44,34 @@ struct MultiLanguageCodeEditor: UIViewRepresentable {
         var parent: MultiLanguageCodeEditor
         let highlightr = Highlightr()
 
+        private let languageMap: [String: String] = [
+            "swift": "swift",
+            "js": "javascript", "jsx": "javascript",
+            "ts": "typescript", "tsx": "typescript",
+            "py": "python",
+            "json": "json",
+            "html": "xml", "htm": "xml",
+            "css": "css", "scss": "css",
+            "cpp": "cpp", "hpp": "cpp", "c": "cpp", "h": "cpp",
+            "cs": "cs",
+            "java": "java",
+            "kt": "kotlin", "kts": "kotlin",
+            "rb": "ruby",
+            "go": "go",
+            "rs": "rust",
+            "sh": "bash", "bash": "bash",
+            "yml": "yaml", "yaml": "yaml",
+            "md": "markdown", "markdown": "markdown",
+            "sql": "sql",
+            "php": "php",
+        ]
+
         init(_ parent: MultiLanguageCodeEditor) {
             self.parent = parent
             super.init()
 
             highlightr?.setTheme(to: "atom-one-dark")
-            
+
             let customFont = UIFont.monospacedSystemFont(ofSize: parent.fontSize, weight: .regular)
             highlightr?.theme.setCodeFont(customFont)
         }
@@ -65,7 +87,7 @@ struct MultiLanguageCodeEditor: UIViewRepresentable {
             guard let highlightr = highlightr else {
                 return NSAttributedString(string: text, attributes: [
                     .font: UIFont.monospacedSystemFont(ofSize: parent.fontSize, weight: .regular),
-                    .foregroundColor: UIColor.white
+                    .foregroundColor: UIColor.white,
                 ])
             }
 
@@ -76,34 +98,13 @@ struct MultiLanguageCodeEditor: UIViewRepresentable {
 
             return NSAttributedString(string: text, attributes: [
                 .font: UIFont.monospacedSystemFont(ofSize: parent.fontSize, weight: .regular),
-                .foregroundColor: UIColor.white
+                .foregroundColor: UIColor.white,
             ])
         }
 
         private func detectLanguage(from path: String) -> String {
             let ext = path.components(separatedBy: ".").last?.lowercased() ?? ""
-            switch ext {
-            case "swift": return "swift"
-            case "js", "jsx": return "javascript"
-            case "ts", "tsx": return "typescript"
-            case "py": return "python"
-            case "json": return "json"
-            case "html", "htm": return "xml"
-            case "css", "scss": return "css"
-            case "cpp", "hpp", "c", "h": return "cpp"
-            case "cs": return "cs"
-            case "java": return "java"
-            case "kt", "kts": return "kotlin"
-            case "rb": return "ruby"
-            case "go": return "go"
-            case "rs": return "rust"
-            case "sh", "bash": return "bash"
-            case "yml", "yaml": return "yaml"
-            case "md", "markdown": return "markdown"
-            case "sql": return "sql"
-            case "php": return "php"
-            default: return ext
-            }
+            return languageMap[ext] ?? ext
         }
     }
 }

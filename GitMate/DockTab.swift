@@ -9,11 +9,11 @@ import Foundation
 
 enum DockTab: String, CaseIterable {
     case home, inbox, aiSearch, explore, repos
-    
+
     var title: String {
         rawValue.capitalized
     }
-    
+
     var icon: String {
         switch self {
         case .home: return "house.fill"
@@ -23,7 +23,7 @@ enum DockTab: String, CaseIterable {
         case .repos: return "shippingbox.fill"
         }
     }
-    
+
     var hasNotification: Bool {
         self == .inbox
     }

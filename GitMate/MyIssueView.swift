@@ -1,5 +1,5 @@
 //
-//  MyIssuesView.swift
+//  MyIssueView.swift
 //  GitMate
 //
 //  Created by somil jain on 23/08/26.
@@ -77,7 +77,6 @@ struct IssueCard: View {
     var body: some View {
         Button(action: onTap) {
             VStack(alignment: .leading, spacing: 10) {
-
                 HStack {
                     Image(
                         systemName: issue.state == "open"
@@ -123,8 +122,8 @@ struct IssueCard: View {
                     .multilineTextAlignment(.leading)
 
                 if let body = issue.body,
-                   !body.isEmpty {
-
+                   !body.isEmpty
+                {
                     Text(body)
                         .font(.system(size: 14))
                         .foregroundStyle(.white.opacity(0.6))

@@ -5,8 +5,8 @@
 //  Created by somil jain on 30/07/26.
 //
 
-import Foundation
 import Combine
+import Foundation
 
 @MainActor
 final class SessionStore: ObservableObject {
@@ -17,7 +17,7 @@ final class SessionStore: ObservableObject {
     @Published var savedEmail: String {
         didSet { UserDefaults.standard.set(savedEmail, forKey: Keys.savedEmail) }
     }
-    
+
     var githubUsername: String {
         let trimmed = savedEmail.trimmingCharacters(in: .whitespacesAndNewlines)
         if let url = URL(string: trimmed), let username = url.pathComponents.last {
@@ -29,14 +29,14 @@ final class SessionStore: ObservableObject {
     private(set) var savedAccessKey: String?
 
     init() {
-        self.isLoggedIn = UserDefaults.standard.bool(forKey: Keys.isLoggedIn)
-        self.savedEmail = UserDefaults.standard.string(forKey: Keys.savedEmail) ?? ""
-        self.savedAccessKey = KeychainHelper.read(service: Keys.service, account: Keys.accessKey)
+        isLoggedIn = UserDefaults.standard.bool(forKey: Keys.isLoggedIn)
+        savedEmail = UserDefaults.standard.string(forKey: Keys.savedEmail) ?? ""
+        savedAccessKey = KeychainHelper.read(service: Keys.service, account: Keys.accessKey)
     }
 
     func signIn(email: String, accessKey: String) {
         savedEmail = email
-        self.savedAccessKey = accessKey
+        savedAccessKey = accessKey
 
         KeychainHelper.save(accessKey, service: Keys.service, account: Keys.accessKey)
 
@@ -64,7 +64,7 @@ enum KeychainHelper {
         let query: [String: Any] = [
             kSecClass as String: kSecClassGenericPassword,
             kSecAttrService as String: service,
-            kSecAttrAccount as String: account
+            kSecAttrAccount as String: account,
         ]
 
         SecItemDelete(query as CFDictionary)
@@ -73,7 +73,7 @@ enum KeychainHelper {
             kSecClass as String: kSecClassGenericPassword,
             kSecAttrService as String: service,
             kSecAttrAccount as String: account,
-            kSecValueData as String: data
+            kSecValueData as String: data,
         ]
 
         SecItemAdd(attributes as CFDictionary, nil)
@@ -85,7 +85,7 @@ enum KeychainHelper {
             kSecAttrService as String: service,
             kSecAttrAccount as String: account,
             kSecReturnData as String: true,
-            kSecMatchLimit as String: kSecMatchLimitOne
+            kSecMatchLimit as String: kSecMatchLimitOne,
         ]
 
         var result: CFTypeRef?
@@ -93,7 +93,8 @@ enum KeychainHelper {
 
         guard status == errSecSuccess,
               let data = result as? Data,
-              let string = String(data: data, encoding: .utf8) else {
+              let string = String(data: data, encoding: .utf8)
+        else {
             return nil
         }
 
@@ -104,7 +105,7 @@ enum KeychainHelper {
         let query: [String: Any] = [
             kSecClass as String: kSecClassGenericPassword,
             kSecAttrService as String: service,
-            kSecAttrAccount as String: account
+            kSecAttrAccount as String: account,
         ]
 
         SecItemDelete(query as CFDictionary)

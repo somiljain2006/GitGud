@@ -9,7 +9,7 @@ import SwiftUI
 
 enum NotificationType {
     case pullRequest, issue, review, comment, ciFailed, ciPassed, discussion, release
-    
+
     var icon: String {
         switch self {
         case .pullRequest: return "arrow.triangle.branch"
@@ -22,7 +22,7 @@ enum NotificationType {
         case .release: return "tag.fill"
         }
     }
-    
+
     var color: Color {
         switch self {
         case .pullRequest: return .green

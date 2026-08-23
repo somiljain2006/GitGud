@@ -16,15 +16,15 @@ struct WorkItem: Identifiable {
     let time: String
     let comments: Int
     let type: NotificationType
-    var prState: PRState? = nil
-    var pullRequestNumber: Int? = nil
-    var owner: String? = nil
-    var repo: String? = nil
+    var prState: PRState?
+    var pullRequestNumber: Int?
+    var owner: String?
+    var repo: String?
 }
 
 enum PRState {
     case open, merged, closed, draft
-    
+
     var color: Color {
         switch self {
         case .merged: return .purple
@@ -33,7 +33,7 @@ enum PRState {
         case .open: return .mint
         }
     }
-    
+
     var title: String {
         switch self {
         case .merged: return "Merged"
