@@ -400,48 +400,91 @@ struct GitHubService {
         number: Int,
         token: String?
     ) async -> [PullRequestReviewComment] {
+        await graphQLService.fetchPullRequestReviewComments(
+            owner: owner,
+            repo: repo,
+            number: number,
+            token: token
+        )
+    }
+
+    func setReviewThreadResolved(
+        threadID: String,
+        resolved: Bool,
+        token: String?
+    ) async -> Bool {
+        await graphQLService.setReviewThreadResolved(
+            threadID: threadID,
+            resolved: resolved,
+            token: token
+        )
+    }
+
+    func replyToPullRequestReviewComment(
+        owner: String,
+        repo: String,
+        pullNumber: Int,
+        commentID: Int,
+        body: String,
+        token: String?
+    ) async -> PullRequestReviewComment? {
         guard let url = URL(
-            string: "https://api.github.com/repos/\(owner)/\(repo)/pulls/\(number)/comments"
+            string: "https://api.github.com/repos/\(owner)/\(repo)/pulls/\(pullNumber)/comments/\(commentID)/replies"
         ) else {
-            return []
+            return nil
         }
 
         var request = URLRequest(url: url)
-        request.httpMethod = "GET"
+        request.httpMethod = "POST"
+
+        request.setValue(
+            "application/vnd.github+json",
+            forHTTPHeaderField: "Accept"
+        )
+
+        request.setValue(
+            "2026-03-10",
+            forHTTPHeaderField: "X-GitHub-Api-Version"
+        )
 
         if let token, !token.isEmpty {
-            request.addValue(
+            request.setValue(
                 "Bearer \(token)",
                 forHTTPHeaderField: "Authorization"
             )
         }
 
-        request.addValue(
-            "application/vnd.github+json",
-            forHTTPHeaderField: "Accept"
+        request.setValue(
+            "application/json",
+            forHTTPHeaderField: "Content-Type"
         )
 
-        request.addValue(
-            "GitMateApp",
-            forHTTPHeaderField: "User-Agent"
-        )
+        let payload = [
+            "body": body,
+        ]
 
         do {
-            let (data, response) = try await URLSession.shared.data(for: request)
+            request.httpBody = try JSONSerialization.data(
+                withJSONObject: payload
+            )
 
-            guard let response = response as? HTTPURLResponse,
-                  response.statusCode == 200
+            let (data, response) = try await URLSession.shared.data(
+                for: request
+            )
+
+            guard let httpResponse = response as? HTTPURLResponse,
+                  httpResponse.statusCode == 201
             else {
-                return []
+                return nil
             }
 
             return try JSONDecoder().decode(
-                [PullRequestReviewComment].self,
+                PullRequestReviewComment.self,
                 from: data
             )
         } catch {
-            print("Error fetching PR review comments: \(error)")
-            return []
+            print("Error replying to review comment: \(error)")
+            return nil
         }
     }
 

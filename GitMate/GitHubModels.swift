@@ -290,6 +290,7 @@ struct PullRequestCommit: Codable, Identifiable {
 
 struct PullRequestReviewComment: Codable, Identifiable {
     let id: Int
+    let nodeID: String?
     let body: String
     let path: String?
     let line: Int?
@@ -306,9 +307,11 @@ struct PullRequestReviewComment: Codable, Identifiable {
     let user: GitHubUser
     let htmlUrl: String
     let inReplyToId: Int?
+    var isResolved: Bool
 
     enum CodingKeys: String, CodingKey {
         case id
+        case nodeID = "node_id"
         case body
         case path
         case line
@@ -325,5 +328,131 @@ struct PullRequestReviewComment: Codable, Identifiable {
         case user
         case htmlUrl = "html_url"
         case inReplyToId = "in_reply_to_id"
+    }
+
+    init(
+        id: Int,
+        nodeID: String? = nil,
+        body: String,
+        path: String?,
+        line: Int?,
+        startLine: Int?,
+        side: String?,
+        startSide: String?,
+        diffHunk: String?,
+        position: Int?,
+        originalPosition: Int?,
+        commitId: String?,
+        originalCommitId: String?,
+        createdAt: String,
+        updatedAt: String,
+        user: GitHubUser,
+        htmlUrl: String,
+        inReplyToId: Int?,
+        isResolved: Bool = false
+    ) {
+        self.id = id
+        self.nodeID = nodeID
+        self.body = body
+        self.path = path
+        self.line = line
+        self.startLine = startLine
+        self.side = side
+        self.startSide = startSide
+        self.diffHunk = diffHunk
+        self.position = position
+        self.originalPosition = originalPosition
+        self.commitId = commitId
+        self.originalCommitId = originalCommitId
+        self.createdAt = createdAt
+        self.updatedAt = updatedAt
+        self.user = user
+        self.htmlUrl = htmlUrl
+        self.inReplyToId = inReplyToId
+        self.isResolved = isResolved
+    }
+
+    init(from decoder: Decoder) throws {
+        let container = try decoder.container(keyedBy: CodingKeys.self)
+
+        id = try container.decode(Int.self, forKey: .id)
+        nodeID = try container.decodeIfPresent(String.self, forKey: .nodeID)
+        body = try container.decode(String.self, forKey: .body)
+        path = try container.decodeIfPresent(String.self, forKey: .path)
+        line = try container.decodeIfPresent(Int.self, forKey: .line)
+        startLine = try container.decodeIfPresent(Int.self, forKey: .startLine)
+        side = try container.decodeIfPresent(String.self, forKey: .side)
+        startSide = try container.decodeIfPresent(String.self, forKey: .startSide)
+        diffHunk = try container.decodeIfPresent(String.self, forKey: .diffHunk)
+        position = try container.decodeIfPresent(Int.self, forKey: .position)
+        originalPosition = try container.decodeIfPresent(Int.self, forKey: .originalPosition)
+        commitId = try container.decodeIfPresent(String.self, forKey: .commitId)
+        originalCommitId = try container.decodeIfPresent(String.self, forKey: .originalCommitId)
+        createdAt = try container.decode(String.self, forKey: .createdAt)
+        updatedAt = try container.decode(String.self, forKey: .updatedAt)
+        user = try container.decode(GitHubUser.self, forKey: .user)
+        htmlUrl = try container.decode(String.self, forKey: .htmlUrl)
+        inReplyToId = try container.decodeIfPresent(Int.self, forKey: .inReplyToId)
+        isResolved = false
+    }
+}
+
+struct GraphQLReviewThreadsResponse: Codable {
+    let data: DataContainer?
+
+    struct DataContainer: Codable {
+        let repository: Repository?
+
+        struct Repository: Codable {
+            let pullRequest: PullRequest?
+
+            struct PullRequest: Codable {
+                let reviewThreads: ReviewThreads?
+
+                struct ReviewThreads: Codable {
+                    let nodes: [Thread]?
+
+                    struct Thread: Codable {
+                        let id: String
+                        let isResolved: Bool
+                        let line: Int?
+                        let comments: Comments?
+
+                        struct Comments: Codable {
+                            let nodes: [Comment]?
+
+                            struct Comment: Codable {
+                                let databaseId: Int?
+                                let body: String
+                                let path: String?
+                                let diffHunk: String?
+                                let position: Int?
+                                let originalPosition: Int?
+                                let commit: Commit?
+                                let originalCommit: Commit?
+                                let createdAt: String
+                                let updatedAt: String
+                                let url: String
+                                let replyTo: ReplyTo?
+                                let author: Author?
+
+                                struct Commit: Codable {
+                                    let oid: String
+                                }
+
+                                struct ReplyTo: Codable {
+                                    let databaseId: Int?
+                                }
+
+                                struct Author: Codable {
+                                    let login: String
+                                    let avatarUrl: String
+                                }
+                            }
+                        }
+                    }
+                }
+            }
+        }
     }
 }

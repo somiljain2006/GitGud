@@ -184,6 +184,7 @@ struct PullRequestCard: View {
     }
 }
 
+// swiftlint:disable type_body_length
 struct PullRequestDetailView: View {
     let reference: PullRequestReference
     let token: String?
@@ -194,6 +195,13 @@ struct PullRequestDetailView: View {
     @State private var hasError = false
     @State private var commits: [PullRequestCommit] = []
     @State private var reviewComments: [PullRequestReviewComment] = []
+    @State private var expandedReviewCommentIDs: Set<Int> = []
+    @State private var replyingToCommentID: Int?
+    @State private var replyText: String = ""
+    @State private var isPostingReply = false
+    @State private var replyError: String?
+    @State private var resolvingCommentIDs: Set<Int> = []
+    @State private var expandedResolvedThreadIDs: Set<String> = []
 
     private let service = GitHubService()
     @Environment(\.openURL) private var openURL
@@ -236,10 +244,10 @@ struct PullRequestDetailView: View {
                     filesSection()
                     Divider()
                         .background(.white.opacity(0.1))
-                    commitsSection()
+                    reviewCommentsSection()
                     Divider()
                         .background(.white.opacity(0.1))
-                    reviewCommentsSection()
+                    commitsSection()
                 }
             }
             .padding(20)
@@ -454,9 +462,11 @@ struct PullRequestDetailView: View {
                 .foregroundStyle(.white)
 
             if let body = pr.body, !body.isEmpty {
-                Text(body)
-                    .font(.body)
-                    .foregroundStyle(.white.opacity(0.8))
+                MarkdownText(
+                    body,
+                    color: .white.opacity(0.8)
+                )
+                .font(.body)
             } else {
                 Text("No description provided.")
                     .font(.body)
@@ -488,26 +498,140 @@ struct PullRequestDetailView: View {
     }
 
     private func filesSection() -> some View {
-        VStack(alignment: .leading, spacing: 16) {
-            Text("Files Changed")
-                .font(.headline)
-                .foregroundStyle(.white)
-
-            if files.isEmpty {
-                Text("No files changed.")
-                    .font(.subheadline)
-                    .foregroundStyle(.white.opacity(0.5))
-            } else {
-                ForEach(files) { file in
-                    NavigationLink {
-                        fileDestination(for: file)
-                    } label: {
-                        fileLabel(for: file)
+        NavigationLink {
+            PullRequestFilesView(
+                files: files,
+                pr: pr,
+                token: token,
+                onCommitSuccess: {
+                    Task {
+                        await loadData()
                     }
-                    .buttonStyle(.plain)
                 }
+            )
+        } label: {
+            HStack(spacing: 12) {
+                Image(systemName: "doc.on.doc")
+                    .font(.system(size: 18, weight: .medium))
+                    .foregroundStyle(.cyan)
+
+                VStack(alignment: .leading, spacing: 4) {
+                    Text("Files Changed")
+                        .font(.headline)
+                        .foregroundStyle(.white)
+
+                    Text("\(files.count) \(files.count == 1 ? "file" : "files") changed")
+                        .font(.subheadline)
+                        .foregroundStyle(.white.opacity(0.5))
+                }
+
+                Spacer()
+
+                Image(systemName: "chevron.right")
+                    .font(.caption.weight(.semibold))
+                    .foregroundStyle(.white.opacity(0.4))
+            }
+            .padding(14)
+            .frame(maxWidth: .infinity, alignment: .leading)
+            .background(Color.white.opacity(0.04))
+            .clipShape(
+                RoundedRectangle(cornerRadius: 12)
+            )
+            .overlay(
+                RoundedRectangle(cornerRadius: 12)
+                    .stroke(
+                        Color.white.opacity(0.06),
+                        lineWidth: 1
+                    )
+            )
+        }
+        .buttonStyle(.plain)
+    }
+
+    private func reviewResolutionButton(
+        for comment: PullRequestReviewComment
+    ) -> some View {
+        HStack {
+            Spacer()
+
+            if resolvingCommentIDs.contains(comment.id) {
+                ProgressView()
+                    .tint(.cyan)
+
+                Text(
+                    comment.isResolved
+                        ? "Unresolving..."
+                        : "Resolving..."
+                )
+                .font(.system(size: 15, weight: .medium))
+                .foregroundStyle(.white.opacity(0.6))
+
+            } else {
+                Button {
+                    Task {
+                        await toggleReviewResolution(for: comment)
+                    }
+                } label: {
+                    HStack(spacing: 5) {
+                        Image(
+                            systemName: comment.isResolved
+                                ? "arrow.uturn.backward"
+                                : "checkmark.circle"
+                        )
+
+                        Text(
+                            comment.isResolved
+                                ? "Unresolve"
+                                : "Resolve"
+                        )
+                    }
+                    .font(.caption.weight(.medium))
+                    .foregroundStyle(
+                        comment.isResolved
+                            ? .orange
+                            : .green
+                    )
+                }
+                .buttonStyle(.plain)
             }
         }
+        .padding(.top, 4)
+    }
+
+    private func toggleReviewResolution(
+        for comment: PullRequestReviewComment
+    ) async {
+        guard let threadID = comment.nodeID else {
+            return
+        }
+
+        guard !resolvingCommentIDs.contains(comment.id) else {
+            return
+        }
+
+        resolvingCommentIDs.insert(comment.id)
+
+        let newResolvedState = !comment.isResolved
+
+        let success = await service.setReviewThreadResolved(
+            threadID: threadID,
+            resolved: newResolvedState,
+            token: token
+        )
+
+        if success {
+            reviewComments = reviewComments.map { item in
+                guard item.nodeID == threadID else {
+                    return item
+                }
+
+                var updated = item
+                updated.isResolved = newResolvedState
+                return updated
+            }
+        }
+
+        resolvingCommentIDs.remove(comment.id)
     }
 
     @ViewBuilder
@@ -535,17 +659,33 @@ struct PullRequestDetailView: View {
         }
     }
 
+    @ViewBuilder
     private func reviewThread(
         _ comment: PullRequestReviewComment
     ) -> some View {
-        VStack(alignment: .leading, spacing: 0) {
-            // Code location + original comment
-            reviewCommentBlock(comment)
+        let replies = reviewComments.filter {
+            $0.inReplyToId == comment.id
+        }
 
-            // Replies
-            let replies = reviewComments.filter {
-                $0.inReplyToId == comment.id
-            }
+        if comment.isResolved {
+            resolvedReviewThread(
+                comment: comment,
+                replies: replies
+            )
+        } else {
+            unresolvedReviewThread(
+                comment: comment,
+                replies: replies
+            )
+        }
+    }
+
+    private func unresolvedReviewThread(
+        comment: PullRequestReviewComment,
+        replies: [PullRequestReviewComment]
+    ) -> some View {
+        VStack(alignment: .leading, spacing: 0) {
+            reviewCommentBlock(comment)
 
             ForEach(replies) { reply in
                 reviewReplyBlock(reply)
@@ -555,6 +695,156 @@ struct PullRequestDetailView: View {
         .clipShape(
             RoundedRectangle(cornerRadius: 12)
         )
+    }
+
+    private func resolvedReviewThread(
+        comment: PullRequestReviewComment,
+        replies: [PullRequestReviewComment]
+    ) -> some View {
+        let threadID = comment.nodeID ?? String(comment.id)
+        let isExpanded = expandedResolvedThreadIDs.contains(threadID)
+
+        return VStack(alignment: .leading, spacing: 0) {
+            Button {
+                toggleResolvedThread(threadID)
+            } label: {
+                HStack(spacing: 8) {
+                    Image(
+                        systemName: isExpanded
+                            ? "chevron.down"
+                            : "chevron.right"
+                    )
+                    .font(.caption.weight(.semibold))
+                    .foregroundStyle(.green)
+
+                    Image(systemName: "checkmark.circle.fill")
+                        .font(.caption)
+                        .foregroundStyle(.green)
+
+                    Text("Review thread resolved")
+                        .font(.system(size: 15, weight: .medium))
+                        .foregroundStyle(.white.opacity(0.75))
+
+                    Spacer()
+                }
+                .contentShape(Rectangle())
+            }
+            .buttonStyle(.plain)
+            .padding(12)
+
+            if isExpanded {
+                reviewCommentBlockWithoutResolution(comment)
+
+                ForEach(replies) { reply in
+                    reviewReplyBlock(reply)
+                }
+            }
+
+            reviewResolutionButton(for: comment)
+                .padding(.horizontal, 12)
+                .padding(.bottom, 10)
+        }
+        .background(Color.green.opacity(0.04))
+        .clipShape(
+            RoundedRectangle(cornerRadius: 12)
+        )
+    }
+
+    private func reviewCommentBlockWithoutResolution(
+        _ comment: PullRequestReviewComment
+    ) -> some View {
+        VStack(alignment: .leading, spacing: 12) {
+            if let path = comment.path {
+                HStack(spacing: 6) {
+                    Image(systemName: "doc.text")
+                        .font(.caption)
+
+                    Text(path)
+                        .font(.caption.monospaced())
+                        .foregroundStyle(.cyan)
+
+                    if let line = comment.line {
+                        Text(":\(line)")
+                            .font(.caption.monospaced())
+                            .foregroundStyle(.white.opacity(0.5))
+                    }
+
+                    Spacer()
+                }
+            }
+
+            if let diffHunk = comment.diffHunk,
+               !diffHunk.trimmingCharacters(
+                   in: .whitespacesAndNewlines
+               ).isEmpty
+            {
+                Button {
+                    toggleReviewCommentDiff(comment.id)
+                } label: {
+                    HStack(spacing: 6) {
+                        Image(
+                            systemName: expandedReviewCommentIDs.contains(comment.id)
+                                ? "chevron.down"
+                                : "chevron.right"
+                        )
+                        .font(.caption.weight(.semibold))
+
+                        Text("View code context")
+                            .font(.caption.weight(.medium))
+
+                        Spacer()
+                    }
+                    .foregroundStyle(.white.opacity(0.7))
+                    .contentShape(Rectangle())
+                }
+                .buttonStyle(.plain)
+
+                if expandedReviewCommentIDs.contains(comment.id) {
+                    diffView(diffHunk)
+                        .textSelection(.enabled)
+                        .transition(.opacity)
+                }
+
+            } else {
+                Text("Code context unavailable")
+                    .font(.caption)
+                    .foregroundStyle(.white.opacity(0.5))
+                    .padding(8)
+                    .frame(
+                        maxWidth: .infinity,
+                        alignment: .leading
+                    )
+                    .background(Color.black.opacity(0.2))
+                    .clipShape(
+                        RoundedRectangle(cornerRadius: 8)
+                    )
+            }
+
+            reviewCommentHeader(comment)
+
+            MarkdownText(
+                comment.body,
+                color: .white.opacity(0.9)
+            )
+            .font(.body)
+
+            if replyingToCommentID == comment.id {
+                replyComposer(for: comment)
+            } else {
+                Button {
+                    startReply(to: comment)
+                } label: {
+                    Label(
+                        "Reply",
+                        systemImage: "arrowshape.turn.up.left"
+                    )
+                    .font(.caption.weight(.medium))
+                    .foregroundStyle(.cyan)
+                }
+                .buttonStyle(.plain)
+            }
+        }
+        .padding(12)
     }
 
     private func reviewCommentBlock(
@@ -575,30 +865,212 @@ struct PullRequestDetailView: View {
                             .font(.caption.monospaced())
                             .foregroundStyle(.white.opacity(0.5))
                     }
+
+                    Spacer()
                 }
             }
 
-            if let diffHunk = comment.diffHunk, !diffHunk.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty {
-                diffView(diffHunk)
-                    .textSelection(.enabled)
+            if let diffHunk = comment.diffHunk,
+               !diffHunk.trimmingCharacters(
+                   in: .whitespacesAndNewlines
+               ).isEmpty
+            {
+                Button {
+                    toggleReviewCommentDiff(comment.id)
+                } label: {
+                    HStack(spacing: 6) {
+                        Image(
+                            systemName: expandedReviewCommentIDs.contains(comment.id)
+                                ? "chevron.down"
+                                : "chevron.right"
+                        )
+                        .font(.caption.weight(.semibold))
+
+                        Text("View code context")
+                            .font(.caption.weight(.medium))
+
+                        Spacer()
+                    }
+                    .foregroundStyle(.white.opacity(0.7))
+                    .contentShape(Rectangle())
+                }
+                .buttonStyle(.plain)
+
+                if expandedReviewCommentIDs.contains(comment.id) {
+                    diffView(diffHunk)
+                        .textSelection(.enabled)
+                        .transition(.opacity)
+                }
+
             } else {
                 Text("Code context unavailable")
                     .font(.caption)
                     .foregroundStyle(.white.opacity(0.5))
                     .padding(8)
-                    .frame(maxWidth: .infinity, alignment: .leading)
+                    .frame(
+                        maxWidth: .infinity,
+                        alignment: .leading
+                    )
                     .background(Color.black.opacity(0.2))
-                    .clipShape(RoundedRectangle(cornerRadius: 8))
+                    .clipShape(
+                        RoundedRectangle(cornerRadius: 8)
+                    )
             }
 
             reviewCommentHeader(comment)
 
-            Text(comment.body)
-                .font(.body)
-                .foregroundStyle(.white.opacity(0.9))
-                .textSelection(.enabled)
+            MarkdownText(
+                comment.body,
+                color: .white.opacity(0.9)
+            )
+            .font(.body)
+
+            reviewResolutionButton(for: comment)
+
+            if replyingToCommentID == comment.id {
+                replyComposer(for: comment)
+            } else {
+                Button {
+                    startReply(to: comment)
+                } label: {
+                    Label(
+                        "Reply",
+                        systemImage: "arrowshape.turn.up.left"
+                    )
+                    .font(.caption.weight(.medium))
+                    .foregroundStyle(.cyan)
+                }
+                .buttonStyle(.plain)
+            }
         }
         .padding(12)
+    }
+
+    private func toggleResolvedThread(_ threadID: String) {
+        if expandedResolvedThreadIDs.contains(threadID) {
+            expandedResolvedThreadIDs.remove(threadID)
+        } else {
+            expandedResolvedThreadIDs.insert(threadID)
+        }
+    }
+
+    private func replyComposer(
+        for comment: PullRequestReviewComment
+    ) -> some View {
+        VStack(alignment: .leading, spacing: 10) {
+            TextEditor(text: $replyText)
+                .font(.body)
+                .foregroundStyle(.white)
+                .scrollContentBackground(.hidden)
+                .frame(minHeight: 80, maxHeight: 140)
+                .padding(8)
+                .background(Color.white.opacity(0.06))
+                .clipShape(
+                    RoundedRectangle(cornerRadius: 10)
+                )
+
+            if let replyError {
+                Text(replyError)
+                    .font(.caption)
+                    .foregroundStyle(.orange)
+            }
+
+            HStack {
+                Button("Cancel") {
+                    cancelReply()
+                }
+                .font(.caption.weight(.medium))
+                .foregroundStyle(.white.opacity(0.6))
+
+                Spacer()
+
+                if isPostingReply {
+                    ProgressView()
+                        .tint(.cyan)
+                } else {
+                    Button("Reply") {
+                        Task {
+                            await postReply(to: comment)
+                        }
+                    }
+                    .font(.system(size: 13, weight: .medium))
+                    .foregroundStyle(
+                        replyText.trimmingCharacters(
+                            in: .whitespacesAndNewlines
+                        ).isEmpty
+                            ? .white.opacity(0.3)
+                            : .cyan
+                    )
+                    .disabled(
+                        replyText.trimmingCharacters(
+                            in: .whitespacesAndNewlines
+                        ).isEmpty
+                    )
+                }
+            }
+        }
+        .padding(10)
+        .background(Color.black.opacity(0.15))
+        .clipShape(
+            RoundedRectangle(cornerRadius: 10)
+        )
+    }
+
+    private func startReply(
+        to comment: PullRequestReviewComment
+    ) {
+        replyingToCommentID = comment.id
+        replyText = ""
+        replyError = nil
+    }
+
+    private func cancelReply() {
+        replyingToCommentID = nil
+        replyText = ""
+        replyError = nil
+    }
+
+    private func postReply(
+        to comment: PullRequestReviewComment
+    ) async {
+        let body = replyText.trimmingCharacters(
+            in: .whitespacesAndNewlines
+        )
+
+        guard !body.isEmpty else {
+            return
+        }
+
+        isPostingReply = true
+        replyError = nil
+
+        let newReply = await service.replyToPullRequestReviewComment(
+            owner: reference.owner,
+            repo: reference.repository,
+            pullNumber: reference.number,
+            commentID: comment.id,
+            body: body,
+            token: token
+        )
+
+        if let newReply {
+            reviewComments.append(newReply)
+
+            replyingToCommentID = nil
+            replyText = ""
+        } else {
+            replyError = "Unable to post reply. Please try again."
+        }
+
+        isPostingReply = false
+    }
+
+    private func toggleReviewCommentDiff(_ commentID: Int) {
+        if expandedReviewCommentIDs.contains(commentID) {
+            expandedReviewCommentIDs.remove(commentID)
+        } else {
+            expandedReviewCommentIDs.insert(commentID)
+        }
     }
 
     private func reviewCommentHeader(
@@ -642,10 +1114,11 @@ struct PullRequestDetailView: View {
 
             reviewCommentHeader(reply)
 
-            Text(reply.body)
-                .font(.body)
-                .foregroundStyle(.white.opacity(0.85))
-                .textSelection(.enabled)
+            MarkdownText(
+                reply.body,
+                color: .white.opacity(0.85)
+            )
+            .font(.body)
         }
         .padding(12)
     }
@@ -971,6 +1444,160 @@ struct PullRequestFileEditorView: View {
                     .foregroundStyle(.cyan)
                     .clipShape(Capsule())
             }
+        }
+    }
+}
+
+struct PullRequestFilesView: View {
+    let files: [PullRequestFile]
+    let pr: PullRequestDetail?
+    let token: String?
+
+    var onCommitSuccess: (() -> Void)?
+
+    var body: some View {
+        ScrollView {
+            LazyVStack(spacing: 12) {
+                if files.isEmpty {
+                    VStack(spacing: 12) {
+                        Image(systemName: "doc")
+                            .font(.system(size: 40))
+                            .foregroundStyle(.white.opacity(0.4))
+
+                        Text("No files changed.")
+                            .font(.headline)
+                            .foregroundStyle(.white.opacity(0.7))
+                    }
+                    .frame(maxWidth: .infinity)
+                    .padding(.top, 80)
+                } else {
+                    ForEach(files) { file in
+                        NavigationLink {
+                            fileDestination(for: file)
+                        } label: {
+                            fileLabel(for: file)
+                        }
+                        .buttonStyle(.plain)
+                    }
+                }
+            }
+            .padding(20)
+        }
+        .background(
+            Color(red: 0.05, green: 0.09, blue: 0.12)
+                .ignoresSafeArea()
+        )
+        .navigationTitle("Files Changed")
+        .navigationBarTitleDisplayMode(.inline)
+        .preferredColorScheme(.dark)
+    }
+
+    @ViewBuilder
+    private func fileDestination(for file: PullRequestFile) -> some View {
+        if let headRepo = pr?.head.repo,
+           let headRef = pr?.head.ref
+        {
+            PullRequestFileEditorView(
+                headOwner: headRepo.owner.login,
+                headRepo: headRepo.name,
+                headBranch: headRef,
+                filePath: file.filename,
+                token: token,
+                onCommitSuccess: onCommitSuccess
+            )
+
+        } else {
+            VStack(spacing: 16) {
+                Image(systemName: "exclamationmark.triangle")
+                    .font(.system(size: 40))
+                    .foregroundStyle(.orange)
+
+                Text("Cannot edit this file.")
+
+                Text("Missing repository head information.")
+                    .foregroundStyle(.secondary)
+            }
+        }
+    }
+
+    private func fileLabel(for file: PullRequestFile) -> some View {
+        VStack(alignment: .leading, spacing: 8) {
+            HStack {
+                Image(systemName: fileIcon(for: file.filename))
+                    .foregroundStyle(.cyan)
+
+                Text(file.filename)
+                    .font(
+                        .system(
+                            size: 14,
+                            design: .monospaced
+                        )
+                    )
+                    .foregroundStyle(.cyan)
+                    .lineLimit(1)
+                    .truncationMode(.middle)
+
+                Spacer()
+
+                Image(systemName: "chevron.right")
+                    .font(.caption.weight(.semibold))
+                    .foregroundStyle(.white.opacity(0.3))
+            }
+
+            HStack(spacing: 10) {
+                Text("+\(file.additions)")
+                    .font(.caption.weight(.medium))
+                    .foregroundStyle(.green)
+
+                Text("-\(file.deletions)")
+                    .font(.caption.weight(.medium))
+                    .foregroundStyle(.red)
+
+                Spacer()
+
+                if let patch = file.patch, !patch.isEmpty {
+                    Text("View diff")
+                        .font(.caption.weight(.medium))
+                        .foregroundStyle(.white.opacity(0.5))
+                }
+            }
+        }
+        .padding(14)
+        .frame(maxWidth: .infinity, alignment: .leading)
+        .background(Color.white.opacity(0.04))
+        .clipShape(
+            RoundedRectangle(cornerRadius: 12)
+        )
+        .overlay(
+            RoundedRectangle(cornerRadius: 12)
+                .stroke(
+                    Color.white.opacity(0.06),
+                    lineWidth: 1
+                )
+        )
+    }
+
+    private func fileIcon(for path: String) -> String {
+        let extensionName = path
+            .split(separator: ".")
+            .last
+            .map { String($0).lowercased() }
+
+        switch extensionName {
+        case "swift":
+            return "swift"
+        case "java":
+            return "cup.and.saucer"
+        case "js", "jsx", "ts", "tsx":
+            return "curlybraces"
+        case "json":
+            return "curlybraces.square"
+        case "md":
+            return "doc.richtext"
+        case "png", "jpg", "jpeg", "gif":
+            return "photo"
+        default:
+            return "doc.text"
         }
     }
 }

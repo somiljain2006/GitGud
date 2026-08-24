@@ -55,7 +55,10 @@ final class ContentViewModel: ObservableObject {
         avatarURL = await fetchedAvatar
         pinnedRepos = await fetchedRepos
         activities = await fetchedEvents
-        myWork = await fetchedWork
+        let freshWork = await fetchedWork
+        if !freshWork.isEmpty {
+            myWork = freshWork
+        }
         quickActions = await fetchedActions
 
         let issues = await fetchedIssues
