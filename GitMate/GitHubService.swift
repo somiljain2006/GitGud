@@ -343,6 +343,108 @@ struct GitHubService {
         }
     }
 
+    func fetchPullRequestCommits(
+        owner: String,
+        repo: String,
+        number: Int,
+        token: String?
+    ) async -> [PullRequestCommit] {
+        guard let url = URL(
+            string: "https://api.github.com/repos/\(owner)/\(repo)/pulls/\(number)/commits"
+        ) else {
+            return []
+        }
+
+        var request = URLRequest(url: url)
+        request.httpMethod = "GET"
+
+        if let token, !token.isEmpty {
+            request.addValue(
+                "Bearer \(token)",
+                forHTTPHeaderField: "Authorization"
+            )
+        }
+
+        request.addValue(
+            "application/vnd.github+json",
+            forHTTPHeaderField: "Accept"
+        )
+
+        request.addValue(
+            "GitMateApp",
+            forHTTPHeaderField: "User-Agent"
+        )
+
+        do {
+            let (data, response) = try await URLSession.shared.data(for: request)
+
+            guard let response = response as? HTTPURLResponse,
+                  response.statusCode == 200
+            else {
+                return []
+            }
+
+            return try JSONDecoder().decode(
+                [PullRequestCommit].self,
+                from: data
+            )
+        } catch {
+            print("Error fetching PR commits: \(error)")
+            return []
+        }
+    }
+
+    func fetchPullRequestReviewComments(
+        owner: String,
+        repo: String,
+        number: Int,
+        token: String?
+    ) async -> [PullRequestReviewComment] {
+        guard let url = URL(
+            string: "https://api.github.com/repos/\(owner)/\(repo)/pulls/\(number)/comments"
+        ) else {
+            return []
+        }
+
+        var request = URLRequest(url: url)
+        request.httpMethod = "GET"
+
+        if let token, !token.isEmpty {
+            request.addValue(
+                "Bearer \(token)",
+                forHTTPHeaderField: "Authorization"
+            )
+        }
+
+        request.addValue(
+            "application/vnd.github+json",
+            forHTTPHeaderField: "Accept"
+        )
+
+        request.addValue(
+            "GitMateApp",
+            forHTTPHeaderField: "User-Agent"
+        )
+
+        do {
+            let (data, response) = try await URLSession.shared.data(for: request)
+
+            guard let response = response as? HTTPURLResponse,
+                  response.statusCode == 200
+            else {
+                return []
+            }
+
+            return try JSONDecoder().decode(
+                [PullRequestReviewComment].self,
+                from: data
+            )
+        } catch {
+            print("Error fetching PR review comments: \(error)")
+            return []
+        }
+    }
+
     private func handleFileUpdateResponse(_ response: URLResponse?) -> Result<Void, FileUpdateError> {
         guard let httpResponse = response as? HTTPURLResponse else { return .failure(.badResponse(0)) }
         switch httpResponse.statusCode {

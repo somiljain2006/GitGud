@@ -273,3 +273,57 @@ struct FileUpdateRequest {
     let commitMessage: String
     let token: String?
 }
+
+struct PullRequestCommit: Codable, Identifiable {
+    let sha: String
+    let commit: CommitInfo
+    let author: GitHubUser?
+
+    var id: String {
+        sha
+    }
+
+    struct CommitInfo: Codable {
+        let message: String
+    }
+}
+
+struct PullRequestReviewComment: Codable, Identifiable {
+    let id: Int
+    let body: String
+    let path: String?
+    let line: Int?
+    let startLine: Int?
+    let side: String?
+    let startSide: String?
+    let diffHunk: String?
+    let position: Int?
+    let originalPosition: Int?
+    let commitId: String?
+    let originalCommitId: String?
+    let createdAt: String
+    let updatedAt: String
+    let user: GitHubUser
+    let htmlUrl: String
+    let inReplyToId: Int?
+
+    enum CodingKeys: String, CodingKey {
+        case id
+        case body
+        case path
+        case line
+        case startLine = "start_line"
+        case side
+        case startSide = "start_side"
+        case diffHunk = "diff_hunk"
+        case position
+        case originalPosition = "original_position"
+        case commitId = "commit_id"
+        case originalCommitId = "original_commit_id"
+        case createdAt = "created_at"
+        case updatedAt = "updated_at"
+        case user
+        case htmlUrl = "html_url"
+        case inReplyToId = "in_reply_to_id"
+    }
+}

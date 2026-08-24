@@ -192,6 +192,8 @@ struct PullRequestDetailView: View {
     @State private var files: [PullRequestFile] = []
     @State private var isLoading = true
     @State private var hasError = false
+    @State private var commits: [PullRequestCommit] = []
+    @State private var reviewComments: [PullRequestReviewComment] = []
 
     private let service = GitHubService()
     @Environment(\.openURL) private var openURL
@@ -232,6 +234,12 @@ struct PullRequestDetailView: View {
                     statsSection(pr: pr)
                     Divider().background(.white.opacity(0.1))
                     filesSection()
+                    Divider()
+                        .background(.white.opacity(0.1))
+                    commitsSection()
+                    Divider()
+                        .background(.white.opacity(0.1))
+                    reviewCommentsSection()
                 }
             }
             .padding(20)
@@ -260,6 +268,60 @@ struct PullRequestDetailView: View {
         }
     }
 
+    private func reviewCommentsSection() -> some View {
+        VStack(alignment: .leading, spacing: 16) {
+            Text("Review Comments")
+                .font(.headline)
+                .foregroundStyle(.white)
+
+            if reviewComments.isEmpty {
+                Text("No review comments.")
+                    .font(.subheadline)
+                    .foregroundStyle(.white.opacity(0.5))
+            } else {
+                ForEach(rootReviewComments) { comment in
+                    reviewThread(comment)
+                }
+            }
+        }
+    }
+
+    private var rootReviewComments: [PullRequestReviewComment] {
+        reviewComments.filter { $0.inReplyToId == nil }
+    }
+
+    private func commitsSection() -> some View {
+        VStack(alignment: .leading, spacing: 16) {
+            Text("Commits")
+                .font(.headline)
+                .foregroundStyle(.white)
+
+            if commits.isEmpty {
+                Text("No commits found.")
+                    .font(.subheadline)
+                    .foregroundStyle(.white.opacity(0.5))
+            } else {
+                ForEach(commits) { commit in
+                    VStack(alignment: .leading, spacing: 6) {
+                        Text(commit.commit.message.components(separatedBy: "\n").first ?? "")
+                            .font(.subheadline.weight(.medium))
+                            .foregroundStyle(.white)
+
+                        Text(String(commit.sha.prefix(7)))
+                            .font(.caption.monospaced())
+                            .foregroundStyle(.cyan)
+                    }
+                    .padding(12)
+                    .frame(maxWidth: .infinity, alignment: .leading)
+                    .background(Color.white.opacity(0.04))
+                    .clipShape(
+                        RoundedRectangle(cornerRadius: 12)
+                    )
+                }
+            }
+        }
+    }
+
     private func loadData() async {
         isLoading = true
         hasError = false
@@ -278,11 +340,37 @@ struct PullRequestDetailView: View {
             token: token
         )
 
-        let (prResult, filesResult) = await(fetchedPR, fetchedFiles)
+        async let fetchedCommits = service.fetchPullRequestCommits(
+            owner: reference.owner,
+            repo: reference.repository,
+            number: reference.number,
+            token: token
+        )
 
-        if let prResult = prResult {
+        async let fetchedReviewComments = service.fetchPullRequestReviewComments(
+            owner: reference.owner,
+            repo: reference.repository,
+            number: reference.number,
+            token: token
+        )
+
+        let (
+            prResult,
+            filesResult,
+            commitsResult,
+            reviewCommentsResult
+        ) = await(
+            fetchedPR,
+            fetchedFiles,
+            fetchedCommits,
+            fetchedReviewComments
+        )
+
+        if let prResult {
             pr = prResult
             files = filesResult
+            commits = commitsResult
+            reviewComments = reviewCommentsResult
         } else {
             hasError = true
         }
@@ -447,6 +535,121 @@ struct PullRequestDetailView: View {
         }
     }
 
+    private func reviewThread(
+        _ comment: PullRequestReviewComment
+    ) -> some View {
+        VStack(alignment: .leading, spacing: 0) {
+            // Code location + original comment
+            reviewCommentBlock(comment)
+
+            // Replies
+            let replies = reviewComments.filter {
+                $0.inReplyToId == comment.id
+            }
+
+            ForEach(replies) { reply in
+                reviewReplyBlock(reply)
+            }
+        }
+        .background(Color.white.opacity(0.04))
+        .clipShape(
+            RoundedRectangle(cornerRadius: 12)
+        )
+    }
+
+    private func reviewCommentBlock(
+        _ comment: PullRequestReviewComment
+    ) -> some View {
+        VStack(alignment: .leading, spacing: 12) {
+            if let path = comment.path {
+                HStack(spacing: 6) {
+                    Image(systemName: "doc.text")
+                        .font(.caption)
+
+                    Text(path)
+                        .font(.caption.monospaced())
+                        .foregroundStyle(.cyan)
+
+                    if let line = comment.line {
+                        Text(":\(line)")
+                            .font(.caption.monospaced())
+                            .foregroundStyle(.white.opacity(0.5))
+                    }
+                }
+            }
+
+            if let diffHunk = comment.diffHunk, !diffHunk.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty {
+                diffView(diffHunk)
+                    .textSelection(.enabled)
+            } else {
+                Text("Code context unavailable")
+                    .font(.caption)
+                    .foregroundStyle(.white.opacity(0.5))
+                    .padding(8)
+                    .frame(maxWidth: .infinity, alignment: .leading)
+                    .background(Color.black.opacity(0.2))
+                    .clipShape(RoundedRectangle(cornerRadius: 8))
+            }
+
+            reviewCommentHeader(comment)
+
+            Text(comment.body)
+                .font(.body)
+                .foregroundStyle(.white.opacity(0.9))
+                .textSelection(.enabled)
+        }
+        .padding(12)
+    }
+
+    private func reviewCommentHeader(
+        _ comment: PullRequestReviewComment
+    ) -> some View {
+        HStack(spacing: 8) {
+            AsyncImage(
+                url: URL(string: comment.user.avatarUrl)
+            ) { image in
+                image
+                    .resizable()
+            } placeholder: {
+                Circle()
+                    .fill(.gray.opacity(0.3))
+            }
+            .frame(width: 28, height: 28)
+            .clipShape(Circle())
+
+            Text(comment.user.login)
+                .font(.subheadline.weight(.semibold))
+                .foregroundStyle(.white)
+
+            Spacer()
+
+            Text(
+                RelativeDateFormatter.relativeString(
+                    from: comment.createdAt
+                )
+            )
+            .font(.caption)
+            .foregroundStyle(.white.opacity(0.5))
+        }
+    }
+
+    private func reviewReplyBlock(
+        _ reply: PullRequestReviewComment
+    ) -> some View {
+        VStack(alignment: .leading, spacing: 10) {
+            Divider()
+                .background(.white.opacity(0.1))
+
+            reviewCommentHeader(reply)
+
+            Text(reply.body)
+                .font(.body)
+                .foregroundStyle(.white.opacity(0.85))
+                .textSelection(.enabled)
+        }
+        .padding(12)
+    }
+
     private func fileLabel(for file: PullRequestFile) -> some View {
         VStack(alignment: .leading, spacing: 8) {
             HStack {
@@ -468,13 +671,7 @@ struct PullRequestDetailView: View {
 
             if let patch = file.patch {
                 DisclosureGroup("View diff") {
-                    Text(patch)
-                        .font(.system(size: 12, design: .monospaced))
-                        .foregroundStyle(.white.opacity(0.8))
-                        .padding()
-                        .frame(maxWidth: .infinity, alignment: .leading)
-                        .background(Color.black.opacity(0.3))
-                        .clipShape(RoundedRectangle(cornerRadius: 8))
+                    diffView(patch)
                 }
                 .tint(.cyan)
                 .font(.caption)
@@ -483,6 +680,48 @@ struct PullRequestDetailView: View {
         .padding(12)
         .background(Color.white.opacity(0.04))
         .clipShape(RoundedRectangle(cornerRadius: 12))
+    }
+
+    private func diffView(_ patch: String) -> some View {
+        VStack(alignment: .leading, spacing: 0) {
+            ForEach(
+                Array(patch.components(separatedBy: "\n").enumerated()),
+                id: \.offset
+            ) { _, line in
+                diffLineView(line)
+            }
+        }
+        .frame(maxWidth: .infinity, alignment: .leading)
+        .background(Color.black.opacity(0.3))
+        .clipShape(RoundedRectangle(cornerRadius: 8))
+    }
+
+    private func diffLineView(_ line: String) -> some View {
+        let isAdded = line.hasPrefix("+") && !line.hasPrefix("+++")
+        let isRemoved = line.hasPrefix("-") && !line.hasPrefix("---")
+        let isHeader = line.hasPrefix("@@")
+
+        return Text(line)
+            .font(.system(size: 12, design: .monospaced))
+            .foregroundStyle(
+                isAdded
+                    ? .green
+                    : isRemoved
+                    ? .red
+                    : isHeader
+                    ? .cyan
+                    : .white.opacity(0.7)
+            )
+            .frame(maxWidth: .infinity, alignment: .leading)
+            .padding(.horizontal, 10)
+            .padding(.vertical, 2)
+            .background(
+                isAdded
+                    ? Color.green.opacity(0.10)
+                    : isRemoved
+                    ? Color.red.opacity(0.10)
+                    : Color.clear
+            )
     }
 }
 
