@@ -1,1 +1,1 @@
-# GitMate
+# GitGud
