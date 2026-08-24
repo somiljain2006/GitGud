@@ -398,61 +398,87 @@ struct PullRequestReviewComment: Codable, Identifiable {
 }
 
 struct GraphQLReviewThreadsResponse: Codable {
-    let data: DataContainer?
+    let data: GraphQLReviewDataContainer?
+}
 
-    struct DataContainer: Codable {
-        let repository: Repository?
+struct GraphQLReviewDataContainer: Codable {
+    let repository: GraphQLReviewRepository?
+}
 
-        struct Repository: Codable {
-            let pullRequest: PullRequest?
+struct GraphQLReviewRepository: Codable {
+    let pullRequest: GraphQLReviewPullRequest?
+}
 
-            struct PullRequest: Codable {
-                let reviewThreads: ReviewThreads?
+struct GraphQLReviewPullRequest: Codable {
+    let reviewThreads: GraphQLReviewThreads?
+}
 
-                struct ReviewThreads: Codable {
-                    let nodes: [Thread]?
+struct GraphQLReviewThreads: Codable {
+    let nodes: [GraphQLReviewThread]?
+}
 
-                    struct Thread: Codable {
-                        let id: String
-                        let isResolved: Bool
-                        let line: Int?
-                        let comments: Comments?
+struct GraphQLReviewComments: Codable {
+    let nodes: [GraphQLReviewComment]?
+}
 
-                        struct Comments: Codable {
-                            let nodes: [Comment]?
+struct GraphQLReviewComment: Codable {
+    let databaseId: Int?
+    let body: String
+    let path: String?
+    let diffHunk: String?
+    let position: Int?
+    let originalPosition: Int?
+    let commit: GraphQLReviewCommit?
+    let originalCommit: GraphQLReviewCommit?
+    let createdAt: String
+    let updatedAt: String
+    let url: String
+    let replyTo: GraphQLReviewReplyTo?
+    let author: GraphQLReviewAuthor?
+}
 
-                            struct Comment: Codable {
-                                let databaseId: Int?
-                                let body: String
-                                let path: String?
-                                let diffHunk: String?
-                                let position: Int?
-                                let originalPosition: Int?
-                                let commit: Commit?
-                                let originalCommit: Commit?
-                                let createdAt: String
-                                let updatedAt: String
-                                let url: String
-                                let replyTo: ReplyTo?
-                                let author: Author?
+struct GraphQLReviewCommit: Codable {
+    let oid: String
+}
 
-                                struct Commit: Codable {
-                                    let oid: String
-                                }
+struct GraphQLReviewReplyTo: Codable {
+    let databaseId: Int?
+}
 
-                                struct ReplyTo: Codable {
-                                    let databaseId: Int?
-                                }
+struct GraphQLReviewAuthor: Codable {
+    let login: String
+    let avatarUrl: String
+}
 
-                                struct Author: Codable {
-                                    let login: String
-                                    let avatarUrl: String
-                                }
-                            }
-                        }
-                    }
-                }
-            }
-        }
+struct MyPullRequest: Identifiable, Codable {
+    let id: Int
+    let number: Int
+    let title: String
+    let state: String
+    let body: String?
+    let htmlURL: String
+    let repositoryName: String
+    let createdAt: String
+    let updatedAt: String
+
+    enum CodingKeys: String, CodingKey {
+        case id
+        case number
+        case title
+        case state
+        case body
+        case htmlURL = "html_url"
+        case repositoryName
+        case createdAt = "created_at"
+        case updatedAt = "updated_at"
     }
+}
+
+struct CommentReplyRequest {
+    let owner: String
+    let repo: String
+    let pullNumber: Int
+    let commentID: Int
+    let body: String
+    let token: String?
 }

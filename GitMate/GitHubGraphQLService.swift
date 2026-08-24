@@ -185,45 +185,21 @@ struct GitHubGraphQLService {
         }
     }
 
-    func fetchPullRequestReviewComments(
-        owner: String,
-        repo: String,
-        number: Int,
-        token: String?
-    ) async -> [PullRequestReviewComment] {
-        let query = """
+    private func reviewCommentsQuery(owner: String, repo: String, number: Int) -> String {
+        """
         {
           repository(owner: "\(owner)", name: "\(repo)") {
             pullRequest(number: \(number)) {
               reviewThreads(first: 100) {
                 nodes {
-                  id
-                  isResolved
-                  line
+                  id isResolved line
                   comments(first: 100) {
                     nodes {
-                      databaseId
-                      body
-                      path
-                      diffHunk
-                      position
-                      originalPosition
-                      commit {
-                        oid
-                      }
-                      originalCommit {
-                        oid
-                      }
-                      createdAt
-                      updatedAt
-                      url
-                      replyTo {
-                        databaseId
-                      }
-                      author {
-                        login
-                        avatarUrl
-                      }
+                      databaseId body path diffHunk position originalPosition
+                      commit { oid } originalCommit { oid }
+                      createdAt updatedAt url
+                      replyTo { databaseId }
+                      author { login avatarUrl }
                     }
                   }
                 }
@@ -232,11 +208,18 @@ struct GitHubGraphQLService {
           }
         }
         """
+    }
+
+    func fetchPullRequestReviewComments(
+        owner: String,
+        repo: String,
+        number: Int,
+        token: String?
+    ) async -> [PullRequestReviewComment] {
+        let query = reviewCommentsQuery(owner: owner, repo: repo, number: number)
 
         do {
-            let decoded: GraphQLReviewThreadsResponse =
-                try await executeGraphQL(query: query, token: token)
-
+            let decoded: GraphQLReviewThreadsResponse = try await executeGraphQL(query: query, token: token)
             guard let threads = decoded.data?.repository?.pullRequest?.reviewThreads?.nodes else {
                 return []
             }
@@ -247,38 +230,17 @@ struct GitHubGraphQLService {
                 }
 
                 for comment in comments {
-                    guard let id = comment.databaseId,
-                          let author = comment.author
-                    else {
-                        continue
-                    }
+                    guard let id = comment.databaseId, let author = comment.author else { continue }
 
-                    let reviewComment = PullRequestReviewComment(
-                        id: id,
-                        nodeID: thread.id,
-                        body: comment.body,
-                        path: comment.path,
-                        line: thread.line,
-                        startLine: nil,
-                        side: nil,
-                        startSide: nil,
-                        diffHunk: comment.diffHunk,
-                        position: comment.position,
-                        originalPosition: comment.originalPosition,
-                        commitId: comment.commit?.oid,
-                        originalCommitId: comment.originalCommit?.oid,
-                        createdAt: comment.createdAt,
-                        updatedAt: comment.updatedAt,
-                        user: GitHubUser(
-                            login: author.login,
-                            avatarUrl: author.avatarUrl
-                        ),
-                        htmlUrl: comment.url,
-                        inReplyToId: comment.replyTo?.databaseId,
-                        isResolved: thread.isResolved
-                    )
-
-                    result.append(reviewComment)
+                    result.append(PullRequestReviewComment(
+                        id: id, nodeID: thread.id, body: comment.body, path: comment.path,
+                        line: thread.line, startLine: nil, side: nil, startSide: nil,
+                        diffHunk: comment.diffHunk, position: comment.position,
+                        originalPosition: comment.originalPosition, commitId: comment.commit?.oid,
+                        originalCommitId: comment.originalCommit?.oid, createdAt: comment.createdAt,
+                        updatedAt: comment.updatedAt, user: GitHubUser(login: author.login, avatarUrl: author.avatarUrl),
+                        htmlUrl: comment.url, inReplyToId: comment.replyTo?.databaseId, isResolved: thread.isResolved
+                    ))
                 }
             }
         } catch {
@@ -292,55 +254,22 @@ struct GitHubGraphQLService {
         resolved: Bool,
         token: String?
     ) async -> Bool {
-        let mutationName = resolved
-            ? "resolveReviewThread"
-            : "unresolveReviewThread"
-
+        let mutationName = resolved ? "resolveReviewThread" : "unresolveReviewThread"
         let mutation = """
         mutation {
-          \(mutationName)(
-            input: {
-              threadId: "\(threadID)"
-            }
-          ) {
-            thread {
-              id
-              isResolved
-            }
+          \(mutationName)(input: { threadId: "\(threadID)" }) {
+            thread { id isResolved }
           }
         }
         """
 
         do {
-            let decoded: GraphQLReviewThreadMutationResponse =
-                try await executeGraphQL(
-                    query: mutation,
-                    token: token
-                )
-
+            let decoded: GraphQLReviewThreadMutationResponse = try await executeGraphQL(query: mutation, token: token)
             return (decoded.data?.resolveReviewThread?.thread?.isResolved ??
                 decoded.data?.unresolveReviewThread?.thread?.isResolved) == resolved
         } catch {
             print("GraphQL \(mutationName) error: \(error)")
             return false
-        }
-    }
-
-    struct GraphQLReviewThreadMutationResponse: Codable {
-        let data: DataContainer?
-
-        struct DataContainer: Codable {
-            let resolveReviewThread: Payload?
-            let unresolveReviewThread: Payload?
-
-            struct Payload: Codable {
-                let thread: Thread?
-            }
-
-            struct Thread: Codable {
-                let id: String
-                let isResolved: Bool
-            }
         }
     }
 }

@@ -180,3 +180,56 @@ struct GraphQLStarredRepositoryNode: Codable {
 struct GraphQLStarredLanguage: Codable {
     let name: String
 }
+
+struct GraphQLReviewThreadMutationResponse: Codable {
+    let data: GraphQLReviewThreadMutationData?
+}
+
+struct GraphQLReviewThreadMutationData: Codable {
+    let resolveReviewThread: GraphQLReviewThreadPayload?
+    let unresolveReviewThread: GraphQLReviewThreadPayload?
+}
+
+struct GraphQLReviewThreadPayload: Codable {
+    let thread: GraphQLReviewThread?
+}
+
+struct GraphQLReviewThread: Codable {
+    let id: String
+    let isResolved: Bool
+    let line: Int?
+    let comments: GraphQLReviewCommentsConnection?
+}
+
+struct GraphQLReviewCommentsConnection: Codable {
+    let nodes: [GraphQLReviewCommentNode]?
+}
+
+struct GraphQLReviewCommentNode: Codable {
+    let databaseId: Int?
+    let body: String
+    let path: String
+    let diffHunk: String
+    let position: Int?
+    let originalPosition: Int?
+    let commit: GraphQLCommitNode?
+    let originalCommit: GraphQLCommitNode?
+    let createdAt: String
+    let updatedAt: String
+    let url: String
+    let replyTo: GraphQLReplyToNode?
+    let author: GraphQLAuthorNode?
+}
+
+struct GraphQLCommitNode: Codable {
+    let oid: String
+}
+
+struct GraphQLReplyToNode: Codable {
+    let databaseId: Int
+}
+
+struct GraphQLAuthorNode: Codable {
+    let login: String
+    let avatarUrl: String
+}

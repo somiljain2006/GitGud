@@ -41,8 +41,7 @@ struct MarkdownText: View {
             } else {
                 content = "\(leadingSpaces)☐ \(rest)"
             }
-        }
-        else if trimmed.hasPrefix("- ") || trimmed.hasPrefix("* ") || trimmed.hasPrefix("+ ") {
+        } else if trimmed.hasPrefix("- ") || trimmed.hasPrefix("* ") || trimmed.hasPrefix("+ ") {
             content = "\(leadingSpaces)• \(trimmed.dropFirst(2))"
         }
 

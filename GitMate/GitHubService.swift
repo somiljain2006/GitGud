@@ -421,56 +421,34 @@ struct GitHubService {
     }
 
     func replyToPullRequestReviewComment(
-        owner: String,
-        repo: String,
-        pullNumber: Int,
-        commentID: Int,
-        body: String,
-        token: String?
+        request: CommentReplyRequest
     ) async -> PullRequestReviewComment? {
         guard let url = URL(
-            string: "https://api.github.com/repos/\(owner)/\(repo)/pulls/\(pullNumber)/comments/\(commentID)/replies"
+            string: "https://api.github.com/repos/\(request.owner)/\(request.repo)/pulls/\(request.pullNumber)/comments/\(request.commentID)/replies"
         ) else {
             return nil
         }
 
-        var request = URLRequest(url: url)
-        request.httpMethod = "POST"
+        var urlRequest = URLRequest(url: url)
+        urlRequest.httpMethod = "POST"
 
-        request.setValue(
-            "application/vnd.github+json",
-            forHTTPHeaderField: "Accept"
-        )
+        urlRequest.setValue("application/vnd.github+json", forHTTPHeaderField: "Accept")
+        urlRequest.setValue("2026-03-10", forHTTPHeaderField: "X-GitHub-Api-Version")
 
-        request.setValue(
-            "2026-03-10",
-            forHTTPHeaderField: "X-GitHub-Api-Version"
-        )
-
-        if let token, !token.isEmpty {
-            request.setValue(
-                "Bearer \(token)",
-                forHTTPHeaderField: "Authorization"
-            )
+        if let token = request.token, !token.isEmpty {
+            urlRequest.setValue("Bearer \(token)", forHTTPHeaderField: "Authorization")
         }
 
-        request.setValue(
-            "application/json",
-            forHTTPHeaderField: "Content-Type"
-        )
+        urlRequest.setValue("application/json", forHTTPHeaderField: "Content-Type")
 
         let payload = [
-            "body": body,
+            "body": request.body,
         ]
 
         do {
-            request.httpBody = try JSONSerialization.data(
-                withJSONObject: payload
-            )
+            urlRequest.httpBody = try JSONSerialization.data(withJSONObject: payload)
 
-            let (data, response) = try await URLSession.shared.data(
-                for: request
-            )
+            let (data, response) = try await URLSession.shared.data(for: urlRequest)
 
             guard let httpResponse = response as? HTTPURLResponse,
                   httpResponse.statusCode == 201
