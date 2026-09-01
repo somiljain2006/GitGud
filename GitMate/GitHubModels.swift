@@ -6,6 +6,7 @@
 //
 
 import Foundation
+import SwiftUI
 
 struct GitHubUserResponse: Codable {
     let avatarUrl: String
@@ -450,6 +451,56 @@ struct GraphQLReviewAuthor: Codable {
     let avatarUrl: String
 }
 
+struct MyIssue: Identifiable, Codable {
+    let id: Int
+    let number: Int
+    let title: String
+    let state: String
+    let body: String?
+    let htmlURL: String
+    let repositoryName: String
+    let createdAt: String
+    let updatedAt: String
+
+    enum CodingKeys: String, CodingKey {
+        case id
+        case number
+        case title
+        case state
+        case body
+        case htmlURL = "html_url"
+        case repositoryName
+        case createdAt = "created_at"
+        case updatedAt = "updated_at"
+    }
+}
+
+struct IssueComment: Identifiable, Codable {
+    let id: Int
+    let body: String
+    let createdAt: String
+    let updatedAt: String
+    let user: GitHubCommentUser
+
+    enum CodingKeys: String, CodingKey {
+        case id
+        case body
+        case createdAt = "created_at"
+        case updatedAt = "updated_at"
+        case user
+    }
+}
+
+struct GitHubCommentUser: Codable {
+    let login: String
+    let avatarURL: String?
+
+    enum CodingKeys: String, CodingKey {
+        case login
+        case avatarURL = "avatar_url"
+    }
+}
+
 struct MyPullRequest: Identifiable, Codable {
     let id: Int
     let number: Int
@@ -481,4 +532,93 @@ struct CommentReplyRequest {
     let commentID: Int
     let body: String
     let token: String?
+}
+
+struct GitHubSubjectDetail: Decodable, Sendable {
+    let state: String?
+    let merged: Bool?
+    let draft: Bool?
+    let mergedAt: String?
+
+    enum CodingKeys: String, CodingKey {
+        case state, merged, draft
+        case mergedAt = "merged_at"
+    }
+
+    nonisolated init(from decoder: Decoder) throws {
+        let container = try decoder.container(keyedBy: CodingKeys.self)
+        state = try container.decodeIfPresent(String.self, forKey: .state)
+        merged = try container.decodeIfPresent(Bool.self, forKey: .merged)
+        draft = try container.decodeIfPresent(Bool.self, forKey: .draft)
+        mergedAt = try container.decodeIfPresent(String.self, forKey: .mergedAt)
+    }
+}
+
+enum InboxFilter: String, CaseIterable {
+    case all = "All"
+    case issues = "Issues"
+    case pullRequests = "Pull Requests"
+    case unread = "Unread"
+    case read = "Read"
+}
+
+enum NotificationKind: Sendable {
+    case openPR
+    case draftPR
+    case mergedPR
+    case closedPR
+    case openIssue
+    case closedIssue
+
+    nonisolated var iconName: String {
+        switch self {
+        case .openPR, .draftPR, .mergedPR, .closedPR:
+            return "pull_request_icon"
+        case .openIssue, .closedIssue:
+            return "issue_icon"
+        }
+    }
+
+    nonisolated var themeColor: Color {
+        switch self {
+        case .openPR, .openIssue:
+            return Color(red: 0.2, green: 0.78, blue: 0.35)
+        case .mergedPR, .closedIssue:
+            return Color(red: 0.55, green: 0.34, blue: 0.88)
+        case .draftPR:
+            return Color.gray
+        case .closedPR:
+            return Color(red: 0.86, green: 0.21, blue: 0.27)
+        }
+    }
+
+    nonisolated var isPullRequest: Bool {
+        switch self {
+        case .openPR, .draftPR, .mergedPR, .closedPR:
+            return true
+        default:
+            return false
+        }
+    }
+
+    nonisolated var isIssue: Bool {
+        switch self {
+        case .openIssue, .closedIssue:
+            return true
+        default:
+            return false
+        }
+    }
+}
+
+struct InboxNotification: Identifiable, Sendable {
+    let id: String
+    let kind: NotificationKind
+    let title: String
+    let time: String
+    let repo: String
+    var isUnread: Bool
+    let owner: String?
+    let prNumber: Int?
+    let issueNumber: Int?
 }

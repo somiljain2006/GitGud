@@ -249,6 +249,55 @@ struct GitHubService {
         }
     }
 
+    func fetchIssueDetail(
+        owner: String,
+        repo: String,
+        number: Int,
+        token: String?
+    ) async -> MyIssue? {
+        guard let url = URL(string: "https://api.github.com/repos/\(owner)/\(repo)/issues/\(number)") else { return nil }
+
+        var request = URLRequest(url: url)
+        request.httpMethod = "GET"
+        if let token = token, !token.isEmpty {
+            request.addValue("Bearer \(token)", forHTTPHeaderField: "Authorization")
+        }
+        request.addValue("application/vnd.github+json", forHTTPHeaderField: "Accept")
+        request.addValue("GitGudApp", forHTTPHeaderField: "User-Agent")
+
+        do {
+            let (data, response) = try await URLSession.shared.data(for: request)
+            guard let httpResponse = response as? HTTPURLResponse, httpResponse.statusCode == 200 else { return nil }
+
+            struct RESTIssue: Codable {
+                let id: Int
+                let number: Int
+                let title: String
+                let state: String
+                let body: String?
+                let html_url: String
+                let created_at: String
+                let updated_at: String
+            }
+
+            let restIssue = try JSONDecoder().decode(RESTIssue.self, from: data)
+            return MyIssue(
+                id: restIssue.id,
+                number: restIssue.number,
+                title: restIssue.title,
+                state: restIssue.state,
+                body: restIssue.body,
+                htmlURL: restIssue.html_url,
+                repositoryName: "\(owner)/\(repo)",
+                createdAt: restIssue.created_at,
+                updatedAt: restIssue.updated_at
+            )
+        } catch {
+            print("Error fetching Issue detail: \(error)")
+            return nil
+        }
+    }
+
     func fetchPullRequestFiles(
         owner: String,
         repo: String,
@@ -463,6 +512,111 @@ struct GitHubService {
         } catch {
             print("Error replying to review comment: \(error)")
             return nil
+        }
+    }
+
+    func postIssueComment(
+        owner: String,
+        repo: String,
+        issueNumber: Int,
+        body: String,
+        token: String?
+    ) async -> Bool {
+        guard let url = URL(string: "https://api.github.com/repos/\(owner)/\(repo)/issues/\(issueNumber)/comments") else {
+            return false
+        }
+
+        var request = URLRequest(url: url)
+        request.httpMethod = "POST"
+        request.setValue("application/vnd.github+json", forHTTPHeaderField: "Accept")
+        request.setValue("application/json", forHTTPHeaderField: "Content-Type")
+        request.setValue("GitGudApp", forHTTPHeaderField: "User-Agent")
+
+        if let token, !token.isEmpty {
+            request.setValue("Bearer \(token)", forHTTPHeaderField: "Authorization")
+        }
+
+        do {
+            request.httpBody = try JSONSerialization.data(withJSONObject: ["body": body])
+            let (data, response) = try await URLSession.shared.data(for: request)
+
+            guard let httpResponse = response as? HTTPURLResponse else { return false }
+
+            guard httpResponse.statusCode == 201 else {
+                print("Failed to post comment. Status: \(httpResponse.statusCode)")
+                if let responseBody = String(data: data, encoding: .utf8) {
+                    print("GitHub response: \(responseBody)")
+                }
+                return false
+            }
+
+            return true
+        } catch {
+            print("Error posting issue comment: \(error)")
+            return false
+        }
+    }
+
+    func fetchIssueComments(
+        owner: String,
+        repo: String,
+        issueNumber: Int,
+        token: String?
+    ) async -> [IssueComment] {
+        guard let url = URL(
+            string: "https://api.github.com/repos/\(owner)/\(repo)/issues/\(issueNumber)/comments?per_page=100"
+        ) else {
+            return []
+        }
+
+        var request = URLRequest(url: url)
+        request.httpMethod = "GET"
+
+        if let token, !token.isEmpty {
+            request.setValue(
+                "Bearer \(token)",
+                forHTTPHeaderField: "Authorization"
+            )
+        }
+
+        request.setValue(
+            "application/vnd.github+json",
+            forHTTPHeaderField: "Accept"
+        )
+
+        request.setValue(
+            "GitGudApp",
+            forHTTPHeaderField: "User-Agent"
+        )
+
+        do {
+            let (data, response) = try await URLSession.shared.data(
+                for: request
+            )
+
+            guard let httpResponse = response as? HTTPURLResponse else {
+                return []
+            }
+
+            guard (200 ... 299).contains(httpResponse.statusCode) else {
+                print(
+                    "Failed to fetch comments. Status: \(httpResponse.statusCode)"
+                )
+
+                if let responseBody = String(data: data, encoding: .utf8) {
+                    print("GitHub response: \(responseBody)")
+                }
+
+                return []
+            }
+
+            return try JSONDecoder().decode(
+                [IssueComment].self,
+                from: data
+            )
+        } catch {
+            print("Error fetching issue comments: \(error)")
+            return []
         }
     }
 

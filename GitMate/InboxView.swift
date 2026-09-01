@@ -1,3 +1,4 @@
+//
 //  InboxView.swift
 //  GitMate
 //
@@ -13,6 +14,7 @@ struct InboxView: View {
 
     @State private var selectedFilter: InboxFilter = .all
     @State private var selectedPR: PullRequestReference?
+    @State private var selectedIssue: MyIssue?
 
     private var filteredNotifications: [InboxNotification] {
         switch selectedFilter {
@@ -27,65 +29,9 @@ struct InboxView: View {
     var body: some View {
         ScrollView(showsIndicators: false) {
             VStack(alignment: .leading, spacing: 24) {
-                HStack(alignment: .bottom) {
-                    Text("Inbox")
-                        .font(.system(size: 34, weight: .bold, design: .rounded))
-                        .foregroundStyle(.white)
+                headerView
 
-                    Spacer()
-
-                    Button("Mark all read") {
-                        Task {
-                            await viewModel.markAllAsRead(token: session.savedAccessKey)
-                        }
-                    }
-                    .font(.subheadline)
-                    .foregroundStyle(viewModel.hasUnreadNotifications ? Color.cyan : Color.white.opacity(0.3))
-                    .disabled(!viewModel.hasUnreadNotifications)
-                }
-                .padding(.horizontal, 20)
-                .padding(.top, 16)
-
-                ScrollView(.horizontal, showsIndicators: false) {
-                    HStack(spacing: 12) {
-                        ForEach(InboxFilter.allCases, id: \.self) { filter in
-                            Button {
-                                withAnimation(.easeInOut(duration: 0.2)) {
-                                    selectedFilter = filter
-                                }
-                            } label: {
-                                Text(filter.rawValue)
-                                    .font(.system(size: 13, weight: .semibold))
-                                    .foregroundStyle(
-                                        selectedFilter == filter
-                                            ? Color.cyan
-                                            : Color.white.opacity(0.7)
-                                    )
-                                    .padding(.horizontal, 16)
-                                    .padding(.vertical, 8)
-                                    .background(
-                                        Capsule()
-                                            .fill(
-                                                selectedFilter == filter
-                                                    ? Color.cyan.opacity(0.15)
-                                                    : Color.white.opacity(0.05)
-                                            )
-                                    )
-                                    .overlay(
-                                        Capsule()
-                                            .stroke(
-                                                selectedFilter == filter
-                                                    ? Color.cyan.opacity(0.5)
-                                                    : Color.white.opacity(0.1),
-                                                lineWidth: 1
-                                            )
-                                    )
-                            }
-                            .buttonStyle(.plain)
-                        }
-                    }
-                    .padding(.horizontal, 20)
-                }
+                filterPillsView
 
                 if viewModel.isLoading {
                     ProgressView()
@@ -93,36 +39,11 @@ struct InboxView: View {
                         .frame(maxWidth: .infinity, alignment: .center)
                         .padding(.top, 40)
                 } else if filteredNotifications.isEmpty {
-                    VStack(spacing: 8) {
-                        Text(viewModel.emptyStateMessage)
-                            .font(.subheadline)
-                            .foregroundStyle(.white.opacity(0.5))
-                            .multilineTextAlignment(.center)
-                            .padding(.horizontal, 20)
-
-                        Button("Retry Fetch") {
-                            Task {
-                                await viewModel.fetchNotifications(token: session.savedAccessKey)
-                            }
-                        }
-                        .font(.caption)
-                        .foregroundStyle(.cyan)
-                    }
-                    .frame(maxWidth: .infinity, alignment: .center)
-                    .padding(.top, 40)
+                    emptyStateView
                 } else {
                     VStack(spacing: 16) {
                         ForEach(filteredNotifications) { notification in
-                            if notification.kind.isPullRequest, let owner = notification.owner, let number = notification.prNumber {
-                                Button {
-                                    selectedPR = PullRequestReference(owner: owner, repository: notification.repo, number: number)
-                                } label: {
-                                    InboxCardView(notification: notification)
-                                }
-                                .buttonStyle(.plain)
-                            } else {
-                                InboxCardView(notification: notification)
-                            }
+                            notificationRow(for: notification)
                         }
                     }
                     .padding(.horizontal, 20)
@@ -141,6 +62,136 @@ struct InboxView: View {
                 PullRequestDetailView(reference: ref, token: session.savedAccessKey)
             }
             .preferredColorScheme(.dark)
+        }
+        .sheet(item: $selectedIssue) { issue in
+            NavigationStack {
+                IssueDetailView(issue: issue)
+            }
+            .preferredColorScheme(.dark)
+        }
+    }
+
+    private var headerView: some View {
+        HStack(alignment: .bottom) {
+            Text("Inbox")
+                .font(.system(size: 34, weight: .bold, design: .rounded))
+                .foregroundStyle(.white)
+
+            Spacer()
+
+            Button("Mark all read") {
+                Task {
+                    await viewModel.markAllAsRead(token: session.savedAccessKey)
+                }
+            }
+            .font(.subheadline)
+            .foregroundStyle(viewModel.hasUnreadNotifications ? Color.cyan : Color.white.opacity(0.3))
+            .disabled(!viewModel.hasUnreadNotifications)
+        }
+        .padding(.horizontal, 20)
+        .padding(.top, 16)
+    }
+
+    private var filterPillsView: some View {
+        ScrollView(.horizontal, showsIndicators: false) {
+            HStack(spacing: 12) {
+                ForEach(InboxFilter.allCases, id: \.self) { filter in
+                    Button {
+                        withAnimation(.easeInOut(duration: 0.2)) {
+                            selectedFilter = filter
+                        }
+                    } label: {
+                        Text(filter.rawValue)
+                            .font(.system(size: 13, weight: .semibold))
+                            .foregroundStyle(
+                                selectedFilter == filter
+                                    ? Color.cyan
+                                    : Color.white.opacity(0.7)
+                            )
+                            .padding(.horizontal, 16)
+                            .padding(.vertical, 8)
+                            .background(
+                                Capsule()
+                                    .fill(
+                                        selectedFilter == filter
+                                            ? Color.cyan.opacity(0.15)
+                                            : Color.white.opacity(0.05)
+                                    )
+                            )
+                            .overlay(
+                                Capsule()
+                                    .stroke(
+                                        selectedFilter == filter
+                                            ? Color.cyan.opacity(0.5)
+                                            : Color.white.opacity(0.1),
+                                        lineWidth: 1
+                                    )
+                            )
+                    }
+                    .buttonStyle(.plain)
+                }
+            }
+            .padding(.horizontal, 20)
+        }
+    }
+
+    private var emptyStateView: some View {
+        VStack(spacing: 8) {
+            Text(viewModel.emptyStateMessage)
+                .font(.subheadline)
+                .foregroundStyle(.white.opacity(0.5))
+                .multilineTextAlignment(.center)
+                .padding(.horizontal, 20)
+
+            Button("Retry Fetch") {
+                Task {
+                    await viewModel.fetchNotifications(token: session.savedAccessKey)
+                }
+            }
+            .font(.caption)
+            .foregroundStyle(.cyan)
+        }
+        .frame(maxWidth: .infinity, alignment: .center)
+        .padding(.top, 40)
+    }
+
+    @ViewBuilder
+    private func notificationRow(for notification: InboxNotification) -> some View {
+        if notification.kind.isPullRequest,
+           let owner = notification.owner,
+           let number = notification.prNumber
+        {
+            Button {
+                selectedPR = PullRequestReference(
+                    owner: owner,
+                    repository: notification.repo,
+                    number: number
+                )
+            } label: {
+                InboxCardView(notification: notification)
+            }
+            .buttonStyle(.plain)
+
+        } else if notification.kind.isIssue,
+                  let owner = notification.owner,
+                  let number = notification.issueNumber
+        {
+            Button {
+                Task {
+                    selectedIssue = await viewModel.fetchIssue(
+                        owner: owner,
+                        repo: notification.repo,
+                        number: number,
+                        token: session.savedAccessKey
+                    )
+                }
+            } label: {
+                InboxCardView(notification: notification)
+            }
+            .buttonStyle(.plain)
+
+        } else {
+            InboxCardView(notification: notification)
         }
     }
 }
@@ -198,6 +249,11 @@ final class InboxViewModel: ObservableObject {
                 self.notifications = previousNotifications
             }
         }
+    }
+
+    func fetchIssue(owner: String, repo: String, number: Int, token: String?) async -> MyIssue? {
+        let service = GitHubService()
+        return await service.fetchIssueDetail(owner: owner, repo: repo, number: number, token: token)
     }
 
     func fetchNotifications(token: String?, isRefresh: Bool = false) async {
@@ -294,7 +350,7 @@ final class InboxViewModel: ObservableObject {
         emptyStateMessage = "GitHub error: \(apiMessage)\n\(authProbe)"
     }
 
-    private func mapToInboxNotifications(_ apiResponse: [GitHubNotification], token: String) async -> [InboxNotification] {
+    private nonisolated func mapToInboxNotifications(_ apiResponse: [GitHubNotification], token: String) async -> [InboxNotification] {
         await withTaskGroup(of: (Int, InboxNotification).self) { group in
             for (index, apiNotif) in apiResponse.enumerated() {
                 group.addTask {
@@ -311,9 +367,18 @@ final class InboxViewModel: ObservableObject {
                     let childRepoName = parts.count > 1 ? String(parts[1]) : ""
 
                     var prNumber: Int?
-                    if await kind.isPullRequest, let urlStr = apiNotif.subject.url, let url = URL(string: urlStr) {
-                        if let numStr = url.lastPathComponent.components(separatedBy: "?").first, let num = Int(numStr) {
+                    var issueNumber: Int?
+
+                    if kind.isPullRequest || kind.isIssue,
+                       let urlStr = apiNotif.subject.url,
+                       let url = URL(string: urlStr),
+                       let numStr = url.lastPathComponent.components(separatedBy: "?").first,
+                       let num = Int(numStr)
+                    {
+                        if kind.isPullRequest {
                             prNumber = num
+                        } else {
+                            issueNumber = num
                         }
                     }
 
@@ -325,7 +390,8 @@ final class InboxViewModel: ObservableObject {
                         repo: childRepoName,
                         isUnread: apiNotif.unread,
                         owner: owner,
-                        prNumber: prNumber
+                        prNumber: prNumber,
+                        issueNumber: issueNumber
                     )
                     return (index, notification)
                 }
@@ -340,7 +406,7 @@ final class InboxViewModel: ObservableObject {
         }
     }
 
-    private func fetchSubjectKind(for subject: GitHubNotification.Subject, token: String) async -> NotificationKind {
+    private nonisolated func fetchSubjectKind(for subject: GitHubNotification.Subject, token: String) async -> NotificationKind {
         let isPR = subject.type == "PullRequest"
         let isIssue = subject.type == "Issue"
 
@@ -506,86 +572,6 @@ final class InboxViewModel: ObservableObject {
             return "Auth probe network error: \(error.localizedDescription)"
         }
     }
-}
-
-struct GitHubSubjectDetail: Codable {
-    let state: String?
-    let merged: Bool?
-    let draft: Bool?
-    let mergedAt: String?
-
-    enum CodingKeys: String, CodingKey {
-        case state, merged, draft
-        case mergedAt = "merged_at"
-    }
-}
-
-enum InboxFilter: String, CaseIterable {
-    case all = "All"
-    case issues = "Issues"
-    case pullRequests = "Pull Requests"
-    case unread = "Unread"
-    case read = "Read"
-}
-
-enum NotificationKind {
-    case openPR
-    case draftPR
-    case mergedPR
-    case closedPR
-    case openIssue
-    case closedIssue
-
-    var iconName: String {
-        switch self {
-        case .openPR, .draftPR, .mergedPR, .closedPR:
-            return "pull_request_icon"
-        case .openIssue, .closedIssue:
-            return "issue_icon"
-        }
-    }
-
-    var themeColor: Color {
-        switch self {
-        case .openPR, .openIssue:
-            return Color(red: 0.2, green: 0.78, blue: 0.35)
-        case .mergedPR, .closedIssue:
-            return Color(red: 0.55, green: 0.34, blue: 0.88)
-        case .draftPR:
-            return Color.gray
-        case .closedPR:
-            return Color(red: 0.86, green: 0.21, blue: 0.27)
-        }
-    }
-
-    var isPullRequest: Bool {
-        switch self {
-        case .openPR, .draftPR, .mergedPR, .closedPR:
-            return true
-        default:
-            return false
-        }
-    }
-
-    var isIssue: Bool {
-        switch self {
-        case .openIssue, .closedIssue:
-            return true
-        default:
-            return false
-        }
-    }
-}
-
-struct InboxNotification: Identifiable {
-    let id: String
-    let kind: NotificationKind
-    let title: String
-    let time: String
-    let repo: String
-    var isUnread: Bool
-    let owner: String?
-    let prNumber: Int?
 }
 
 struct InboxCardView: View {
