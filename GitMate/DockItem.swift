@@ -12,18 +12,25 @@ struct DockItem: View {
     let systemImage: String
     let isSelected: Bool
     let showDot: Bool
+    let isAI: Bool
 
     var body: some View {
-        VStack(spacing: 4) {
+        VStack(spacing: isAI ? 0 : 4) {
             ZStack(alignment: .topTrailing) {
-                Image(systemName: systemImage)
-                    .font(.system(size: 18, weight: .semibold))
-                    .foregroundStyle(
-                        isSelected
-                            ? Color.cyan
-                            : Color.white.opacity(0.65)
-                    )
-                    .symbolRenderingMode(.hierarchical)
+                if isAI {
+                    SiriOrbView(isActive: isSelected)
+                        .frame(width: 40, height: 40)
+                        .offset(y: -1)
+                } else {
+                    Image(systemName: systemImage)
+                        .font(.system(size: 18, weight: .semibold))
+                        .foregroundStyle(
+                            isSelected
+                                ? Color.cyan
+                                : Color.white.opacity(0.65)
+                        )
+                        .symbolRenderingMode(.hierarchical)
+                }
 
                 if showDot {
                     Circle()
@@ -33,21 +40,23 @@ struct DockItem: View {
                 }
             }
 
-            Text(title)
-                .font(
-                    .system(
-                        size: 11,
-                        weight: .semibold,
-                        design: .rounded
+            if !isAI {
+                Text(title)
+                    .font(
+                        .system(
+                            size: 11,
+                            weight: .semibold,
+                            design: .rounded
+                        )
                     )
-                )
-                .foregroundStyle(
-                    isSelected
-                        ? Color.cyan
-                        : Color.white.opacity(0.65)
-                )
+                    .foregroundStyle(
+                        isSelected
+                            ? Color.cyan
+                            : Color.white.opacity(0.65)
+                    )
+            }
         }
         .frame(maxWidth: .infinity)
-        .padding(.vertical, 8)
+        .padding(.vertical, isAI ? 2 : 8)
     }
 }

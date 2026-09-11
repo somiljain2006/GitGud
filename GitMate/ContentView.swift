@@ -209,7 +209,10 @@ struct ContentView: View {
                         title: tab.title,
                         systemImage: tab.icon,
                         isSelected: viewModel.selectedTab == tab,
-                        showDot: tab == .inbox ? inboxViewModel.hasUnreadNotifications : tab.hasNotification
+                        showDot: tab == .inbox
+                            ? inboxViewModel.hasUnreadNotifications
+                            : tab.hasNotification,
+                        isAI: tab == .aiSearch
                     )
                 }
                 .buttonStyle(.plain)

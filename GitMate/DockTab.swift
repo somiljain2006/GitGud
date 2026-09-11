@@ -11,16 +11,32 @@ enum DockTab: String, CaseIterable {
     case home, inbox, aiSearch, explore, repos
 
     var title: String {
-        rawValue.capitalized
+        switch self {
+        case .home:
+            return "Home"
+        case .inbox:
+            return "Inbox"
+        case .aiSearch:
+            return "AI"
+        case .explore:
+            return "Explore"
+        case .repos:
+            return "Repos"
+        }
     }
 
     var icon: String {
         switch self {
-        case .home: return "house.fill"
-        case .inbox: return "tray.fill"
-        case .aiSearch: return "brain.head.profile"
-        case .explore: return "safari"
-        case .repos: return "shippingbox.fill"
+        case .home:
+            return "house.fill"
+        case .inbox:
+            return "tray.fill"
+        case .aiSearch:
+            return "sparkles"
+        case .explore:
+            return "safari"
+        case .repos:
+            return "shippingbox.fill"
         }
     }
 
