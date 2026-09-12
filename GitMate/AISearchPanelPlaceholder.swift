@@ -47,7 +47,7 @@ struct AISearchPanelPlaceholder: View {
                                 ProgressView()
                                     .tint(.cyan)
 
-                                Text("GitMate is thinking...")
+                                Text("Orbi is thinking...")
                                     .foregroundStyle(.secondary)
                                     .font(.caption)
 
@@ -72,7 +72,7 @@ struct AISearchPanelPlaceholder: View {
                     .foregroundStyle(.cyan)
 
                 TextField(
-                    "Ask GitMate anything...",
+                    "Ask Orbi anything...",
                     text: $searchText
                 )
                 .textFieldStyle(.plain)
@@ -170,7 +170,7 @@ struct AISearchPanelPlaceholder: View {
                     alignment: .leading,
                     spacing: 4
                 ) {
-                    Text("GitMate")
+                    Text("Orbi")
                         .font(.caption)
                         .foregroundStyle(.cyan)
 

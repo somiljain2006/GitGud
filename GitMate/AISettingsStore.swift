@@ -13,10 +13,10 @@ final class AISettingsStore {
 
     private init() {}
 
-    private let modelKey = "gitmate.ai.model"
-    private let baseURLKey = "gitmate.ai.baseURL"
+    private let modelKey = "gitgud.ai.model"
+    private let baseURLKey = "gitgud.ai.baseURL"
 
-    private let keychainService = "com.gitmate.ai"
+    private let keychainService = "com.gitgud.ai"
     private let keychainAccount = "apiKey"
 
     var settings: AISettings {

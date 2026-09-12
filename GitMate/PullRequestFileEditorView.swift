@@ -26,6 +26,8 @@ struct PullRequestFileEditorView: View {
     @State private var commitMessage: String = ""
     @State private var commitError: String?
 
+    @State private var showAIPanel = false
+
     private let service = GitHubService()
     @Environment(\.dismiss) private var dismiss
 
@@ -39,9 +41,71 @@ struct PullRequestFileEditorView: View {
     }
 
     var body: some View {
-        ZStack {
+        ZStack(alignment: .bottomTrailing) {
             Color(red: 0.05, green: 0.09, blue: 0.12).ignoresSafeArea()
             content
+
+            if !isLoading, loadError == nil, fileContent?.decodedContent != nil {
+                Button {
+                    withAnimation(.spring(response: 0.4, dampingFraction: 0.8)) {
+                        showAIPanel = true
+                    }
+                } label: {
+                    HStack(spacing: 6) {
+                        Image(systemName: "sparkles")
+                            .font(.system(size: 14, weight: .semibold))
+                        Text("Orbi")
+                            .font(.system(size: 14, weight: .semibold))
+                    }
+                    .foregroundStyle(.black)
+                    .padding(.horizontal, 16)
+                    .padding(.vertical, 10)
+                    .background(Color.cyan)
+                    .clipShape(Capsule())
+                }
+                .buttonStyle(.plain)
+                .padding(.trailing, 20)
+                .padding(.bottom, 24)
+                .transition(.scale.combined(with: .opacity))
+            }
+
+            if showAIPanel {
+                Color.black.opacity(0.4)
+                    .ignoresSafeArea()
+                    .onTapGesture {
+                        withAnimation(.spring(response: 0.4, dampingFraction: 0.85)) {
+                            showAIPanel = false
+                        }
+                    }
+                    .transition(.opacity)
+
+                VStack {
+                    Spacer()
+                    PRFileAIChatPanel(
+                        filePath: filePath,
+                        currentCode: editedText,
+                        onApplyCode: { suggestedCode in
+                            withAnimation {
+                                editedText = suggestedCode
+                                showAIPanel = false
+                            }
+                        },
+                        onClose: {
+                            withAnimation(.spring(response: 0.4, dampingFraction: 0.85)) {
+                                showAIPanel = false
+                            }
+                        }
+                    )
+                    .padding(.horizontal, 12)
+                    .padding(.bottom, 16)
+                }
+                .transition(
+                    .asymmetric(
+                        insertion: .move(edge: .bottom).combined(with: .opacity),
+                        removal: .move(edge: .bottom).combined(with: .opacity)
+                    )
+                )
+            }
         }
         .navigationTitle(filename)
         .navigationBarTitleDisplayMode(.inline)

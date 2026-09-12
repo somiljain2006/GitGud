@@ -41,6 +41,7 @@ final class AIService {
 
     func sendMessage(
         _ message: String,
+        systemPrompt: String? = nil,
         conversation: [AIChatMessage] = []
     ) async throws -> String {
         let settings = AISettingsStore.shared.settings
@@ -57,6 +58,7 @@ final class AIService {
             apiKey: settings.apiKey,
             model: settings.model,
             message: message,
+            systemPrompt: systemPrompt,
             conversation: conversation
         )
 
@@ -70,6 +72,7 @@ final class AIService {
         apiKey: String,
         model: String,
         message: String,
+        systemPrompt: String? = nil,
         conversation: [AIChatMessage]
     ) throws -> URLRequest {
         let cleanURL = baseURL
@@ -85,18 +88,28 @@ final class AIService {
         request.setValue("Bearer \(apiKey)", forHTTPHeaderField: "Authorization")
         request.setValue("application/json", forHTTPHeaderField: "Content-Type")
 
-        let previousMessages = conversation.map {
+        var allMessages: [ChatCompletionMessage] = []
+
+        if let systemPrompt {
+            allMessages.append(
+                ChatCompletionMessage(role: "system", content: systemPrompt)
+            )
+        }
+
+        allMessages += conversation.map {
             ChatCompletionMessage(
                 role: $0.role == .user ? "user" : "assistant",
                 content: $0.content
             )
         }
 
+        allMessages.append(
+            ChatCompletionMessage(role: "user", content: message)
+        )
+
         let requestBody = ChatCompletionRequest(
             model: model,
-            messages: previousMessages + [
-                ChatCompletionMessage(role: "user", content: message),
-            ],
+            messages: allMessages,
             temperature: 0.7
         )
 
