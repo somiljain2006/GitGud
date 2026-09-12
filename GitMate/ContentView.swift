@@ -15,9 +15,10 @@ struct ContentView: View {
     @State private var visitedTabs: Set<DockTab> = [.home]
     @State private var exploreViewModel: ExploreViewModel?
     @State private var showingReadme = false
+    @State private var showingAISearchPanel = false
 
     var body: some View {
-        ZStack(alignment: .bottom) {
+        ZStack {
             background
 
             ZStack {
@@ -31,7 +32,24 @@ struct ContentView: View {
                 }
             }
 
-            bottomDock
+            VStack(spacing: 0) {
+                Spacer()
+
+                if showingAISearchPanel {
+                    AISearchPanelPlaceholder {
+                        showingAISearchPanel = false
+                    }
+                    .padding(.horizontal, 18)
+                    .padding(.bottom, 10)
+                    .transition(
+                        .move(edge: .bottom)
+                            .combined(with: .opacity)
+                    )
+                    .zIndex(10)
+                }
+
+                bottomDock
+            }
         }
         .preferredColorScheme(.dark)
         .sheet(isPresented: $isShowingAllRepos) {
@@ -52,18 +70,26 @@ struct ContentView: View {
             } else {
                 NavigationView {
                     VStack(spacing: 16) {
-                        ProgressView().tint(.cyan)
+                        ProgressView()
+                            .tint(.cyan)
+
                         Text("Loading README...")
                             .foregroundStyle(.secondary)
                     }
                     .task {
                         let username = session.githubUsername
                         let token = session.savedAccessKey
-                        await viewModel.fetchReadme(for: username, token: token)
+
+                        await viewModel.fetchReadme(
+                            for: username,
+                            token: token
+                        )
                     }
                     .toolbar {
                         ToolbarItem(placement: .navigationBarTrailing) {
-                            Button("Close") { showingReadme = false }
+                            Button("Close") {
+                                showingReadme = false
+                            }
                         }
                     }
                 }
@@ -93,7 +119,11 @@ struct ContentView: View {
         .task {
             let username = session.githubUsername
             let token = session.savedAccessKey
-            await viewModel.refreshData(for: username, token: token)
+
+            await viewModel.refreshData(
+                for: username,
+                token: token
+            )
 
             if exploreViewModel == nil {
                 exploreViewModel = ExploreViewModel(session: session)
@@ -109,7 +139,7 @@ struct ContentView: View {
         case .inbox:
             InboxView(viewModel: inboxViewModel)
         case .aiSearch:
-            Text("AI Search").foregroundStyle(.white.opacity(0.5))
+            EmptyView()
         case .explore:
             if let exploreViewModel {
                 ExploreView(viewModel: exploreViewModel)
@@ -200,15 +230,21 @@ struct ContentView: View {
         HStack(spacing: 0) {
             ForEach(DockTab.allCases, id: \.self) { tab in
                 Button {
-                    withAnimation(.easeInOut(duration: 0.2)) {
-                        visitedTabs.insert(tab)
-                        viewModel.selectedTab = tab
+                    withAnimation(.spring(response: 0.4, dampingFraction: 0.85)) {
+                        if tab == .aiSearch {
+                            showingAISearchPanel.toggle()
+                        } else {
+                            showingAISearchPanel = false
+                            visitedTabs.insert(tab)
+                            viewModel.selectedTab = tab
+                        }
                     }
                 } label: {
                     DockItem(
                         title: tab.title,
                         systemImage: tab.icon,
-                        isSelected: viewModel.selectedTab == tab,
+                        isSelected: viewModel.selectedTab == tab
+                            || (tab == .aiSearch && showingAISearchPanel),
                         showDot: tab == .inbox
                             ? inboxViewModel.hasUnreadNotifications
                             : tab.hasNotification,
@@ -216,6 +252,14 @@ struct ContentView: View {
                     )
                 }
                 .buttonStyle(.plain)
+                .opacity(
+                    tab == .aiSearch && showingAISearchPanel
+                        ? 0
+                        : 1
+                )
+                .allowsHitTesting(
+                    !(tab == .aiSearch && showingAISearchPanel)
+                )
             }
         }
         .padding(.vertical, 12)
