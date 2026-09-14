@@ -233,3 +233,78 @@ struct GraphQLAuthorNode: Codable {
     let login: String
     let avatarUrl: String
 }
+
+struct GraphQLRepositoryDetailResponse: Codable {
+    let data: GraphQLRepositoryDetailData?
+}
+
+struct GraphQLRepositoryDetailData: Codable {
+    let repository: GraphQLRepositoryDetail?
+}
+
+struct GraphQLRepositoryDetail: Codable {
+    let name: String
+    let nameWithOwner: String
+    let owner: OwnerNode?
+    let description: String?
+    let homepageUrl: String?
+    let isPrivate: Bool
+    let viewerHasStarred: Bool
+    let viewerSubscription: String?
+    let viewerPermission: String?
+    let licenseInfo: LicenseInfoNode?
+    let stargazerCount: Int
+    let forkCount: Int
+    let watchers: CountNode?
+    let issues: CountNode?
+    let pullRequests: CountNode?
+    let defaultBranchRef: DefaultBranchRefNode?
+    let languages: LanguagesNode?
+    let object: GraphQLBlobNode?
+}
+
+struct LicenseInfoNode: Codable {
+    let name: String
+}
+
+struct DefaultBranchRefNode: Codable {
+    let name: String
+    let target: BranchTargetNode?
+}
+
+struct BranchTargetNode: Codable {
+    let history: BranchHistoryNode?
+}
+
+struct BranchHistoryNode: Codable {
+    let nodes: [BranchCommitNode]?
+}
+
+struct BranchCommitNode: Codable {
+    let message: String
+    let author: CommitAuthorNode?
+    let committedDate: String
+}
+
+struct CommitAuthorNode: Codable {
+    let user: OwnerNode?
+}
+
+struct LanguagesNode: Codable {
+    let edges: [LanguageEdge]?
+    let totalSize: Int
+}
+
+struct LanguageEdge: Codable {
+    let size: Int
+    let node: LanguageColorNode?
+}
+
+struct LanguageColorNode: Codable {
+    let name: String
+    let color: String?
+}
+
+struct GraphQLBlobNode: Codable {
+    let text: String?
+}

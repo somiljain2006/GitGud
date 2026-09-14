@@ -622,3 +622,112 @@ struct InboxNotification: Identifiable, Sendable {
     let prNumber: Int?
     let issueNumber: Int?
 }
+
+struct GitHubDirectoryItem: Codable, Identifiable {
+    let name: String
+    let path: String
+    let sha: String
+    let size: Int
+    let url: String
+    let htmlUrl: String
+    let gitUrl: String
+    let downloadUrl: String?
+    let type: String
+
+    var id: String {
+        sha
+    }
+
+    enum CodingKeys: String, CodingKey {
+        case name, path, sha, size, url, type
+        case htmlUrl = "html_url"
+        case gitUrl = "git_url"
+        case downloadUrl = "download_url"
+    }
+}
+
+struct GitHubBranch: Codable, Identifiable {
+    let name: String
+    let commit: CommitRef
+    let protected: Bool
+
+    var id: String {
+        name
+    }
+
+    struct CommitRef: Codable {
+        let sha: String
+        let url: String
+    }
+}
+
+struct GitHubCommitDetail: Codable {
+    let sha: String
+    let commit: CommitInfo
+    let author: GitHubUser?
+    let stats: CommitStats?
+    let files: [CommitFile]?
+
+    struct CommitInfo: Codable {
+        let message: String
+        let author: CommitAuthor?
+    }
+
+    struct CommitAuthor: Codable {
+        let name: String
+        let date: String
+    }
+
+    struct CommitStats: Codable {
+        let additions: Int
+        let deletions: Int
+        let total: Int
+    }
+
+    struct CommitFile: Codable, Identifiable {
+        let filename: String
+        let status: String
+        let additions: Int
+        let deletions: Int
+        let changes: Int
+        let patch: String?
+
+        var id: String {
+            filename
+        }
+    }
+}
+
+struct EventTypeDisplay {
+    let title: String
+    let icon: String
+    let color: Color
+}
+
+struct GitHubIssueSearchResponse: Codable {
+    let items: [GitHubIssueSearchItem]
+}
+
+struct GitHubIssueSearchItem: Codable {
+    let id: Int
+    let number: Int
+    let title: String
+    let state: String
+    let body: String?
+    let htmlURL: String
+    let repository: GitHubIssueSearchItemRepository
+    let createdAt: String
+    let updatedAt: String
+
+    enum CodingKeys: String, CodingKey {
+        case id
+        case number
+        case title
+        case state
+        case body
+        case htmlURL = "html_url"
+        case repository
+        case createdAt = "created_at"
+        case updatedAt = "updated_at"
+    }
+}

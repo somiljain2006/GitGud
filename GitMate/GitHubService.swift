@@ -691,12 +691,6 @@ struct GitHubService {
         }
     }
 
-    struct EventTypeDisplay {
-        let title: String
-        let icon: String
-        let color: Color
-    }
-
     private func mapEventType(_ type: String) -> EventTypeDisplay {
         switch type {
         case "PushEvent": return EventTypeDisplay(title: "Pushed code", icon: "arrow.up.circle.fill", color: .cyan)
@@ -709,38 +703,171 @@ struct GitHubService {
     }
 }
 
-struct GitHubIssueSearchResponse: Codable {
-    let items: [GitHubIssueSearchItem]
-}
-
-struct GitHubIssueSearchItem: Codable {
-    let id: Int
-    let number: Int
-    let title: String
-    let state: String
-    let body: String?
-    let htmlURL: String
-    let repository: GitHubIssueSearchItemRepository
-    let createdAt: String
-    let updatedAt: String
-
-    enum CodingKeys: String, CodingKey {
-        case id
-        case number
-        case title
-        case state
-        case body
-        case htmlURL = "html_url"
-        case repository
-        case createdAt = "created_at"
-        case updatedAt = "updated_at"
-    }
-}
-
 struct GitHubIssueSearchItemRepository: Codable {
     let fullName: String
 
     enum CodingKeys: String, CodingKey {
         case fullName = "full_name"
+    }
+}
+
+extension GitHubService {
+    func fetchRepositoryDetail(owner: String, repo: String, token: String?) async -> GraphQLRepositoryDetail? {
+        await graphQLService.fetchRepositoryDetail(owner: owner, repo: repo, token: token)
+    }
+
+    func fetchDirectoryContents(
+        owner: String,
+        repo: String,
+        path: String,
+        branch: String,
+        token: String?
+    ) async -> [GitHubDirectoryItem]? {
+        let encodedPath = path.addingPercentEncoding(withAllowedCharacters: .urlPathAllowed) ?? path
+        guard var components = URLComponents(string: "https://api.github.com/repos/\(owner)/\(repo)/contents/\(encodedPath)") else { return nil }
+        components.queryItems = [URLQueryItem(name: "ref", value: branch)]
+        guard let url = components.url else { return nil }
+
+        var request = URLRequest(url: url)
+        request.httpMethod = "GET"
+        if let token = token, !token.isEmpty {
+            request.addValue("Bearer \(token)", forHTTPHeaderField: "Authorization")
+        }
+        request.addValue("application/vnd.github+json", forHTTPHeaderField: "Accept")
+        request.addValue("GitGudApp", forHTTPHeaderField: "User-Agent")
+
+        do {
+            let (data, response) = try await URLSession.shared.data(for: request)
+            guard let httpResponse = response as? HTTPURLResponse, httpResponse.statusCode == 200 else { return nil }
+            return try JSONDecoder().decode([GitHubDirectoryItem].self, from: data)
+        } catch {
+            print("Error fetching directory content: \(error)")
+            return nil
+        }
+    }
+
+    func fetchBranches(owner: String, repo: String, token: String?) async -> [GitHubBranch] {
+        guard let url = URL(string: "https://api.github.com/repos/\(owner)/\(repo)/branches") else { return [] }
+        var request = URLRequest(url: url)
+        request.httpMethod = "GET"
+        if let token = token, !token.isEmpty {
+            request.addValue("Bearer \(token)", forHTTPHeaderField: "Authorization")
+        }
+        request.addValue("application/vnd.github+json", forHTTPHeaderField: "Accept")
+        request.addValue("GitGudApp", forHTTPHeaderField: "User-Agent")
+        do {
+            let (data, response) = try await URLSession.shared.data(for: request)
+            guard let httpResponse = response as? HTTPURLResponse, httpResponse.statusCode == 200 else { return [] }
+            return try JSONDecoder().decode([GitHubBranch].self, from: data)
+        } catch {
+            print("Error fetching branches: \(error)")
+            return []
+        }
+    }
+
+    func forkRepository(owner: String, repo: String, token: String?) async -> Bool {
+        guard let url = URL(string: "https://api.github.com/repos/\(owner)/\(repo)/forks") else { return false }
+        var request = URLRequest(url: url)
+        request.httpMethod = "POST"
+        if let token = token, !token.isEmpty {
+            request.addValue("Bearer \(token)", forHTTPHeaderField: "Authorization")
+        }
+        request.addValue("application/vnd.github+json", forHTTPHeaderField: "Accept")
+        request.addValue("GitGudApp", forHTTPHeaderField: "User-Agent")
+        do {
+            let (_, response) = try await URLSession.shared.data(for: request)
+            guard let httpResponse = response as? HTTPURLResponse else { return false }
+            return (200 ... 299).contains(httpResponse.statusCode)
+        } catch {
+            print("Error forking repo: \(error)")
+            return false
+        }
+    }
+
+    func toggleWatch(owner: String, repo: String, isWatching: Bool, token: String?) async -> Bool {
+        guard let url = URL(string: "https://api.github.com/repos/\(owner)/\(repo)/subscription") else { return false }
+        var request = URLRequest(url: url)
+        request.httpMethod = isWatching ? "PUT" : "DELETE"
+        if let token = token, !token.isEmpty {
+            request.addValue("Bearer \(token)", forHTTPHeaderField: "Authorization")
+        }
+        request.addValue("application/vnd.github+json", forHTTPHeaderField: "Accept")
+        request.addValue("GitGudApp", forHTTPHeaderField: "User-Agent")
+        if isWatching {
+            request.addValue("application/json", forHTTPHeaderField: "Content-Type")
+            request.httpBody = try? JSONSerialization.data(withJSONObject: ["subscribed": true])
+        }
+        do {
+            let (_, response) = try await URLSession.shared.data(for: request)
+            guard let httpResponse = response as? HTTPURLResponse else { return false }
+            return (200 ... 299).contains(httpResponse.statusCode)
+        } catch {
+            print("Error toggling watch: \(error)")
+            return false
+        }
+    }
+
+    func fetchRepositoryCommits(owner: String, repo: String, branch: String, token: String?) async -> [PullRequestCommit] {
+        guard var components = URLComponents(string: "https://api.github.com/repos/\(owner)/\(repo)/commits") else { return [] }
+        components.queryItems = [URLQueryItem(name: "sha", value: branch)]
+        guard let url = components.url else { return [] }
+
+        var request = URLRequest(url: url)
+        request.httpMethod = "GET"
+        if let token, !token.isEmpty {
+            request.addValue("Bearer \(token)", forHTTPHeaderField: "Authorization")
+        }
+        request.addValue("application/vnd.github+json", forHTTPHeaderField: "Accept")
+        request.addValue("GitGudApp", forHTTPHeaderField: "User-Agent")
+
+        do {
+            let (data, response) = try await URLSession.shared.data(for: request)
+            guard let httpResponse = response as? HTTPURLResponse, httpResponse.statusCode == 200 else { return [] }
+            return try JSONDecoder().decode([PullRequestCommit].self, from: data)
+        } catch {
+            print("Error fetching repo commits: \(error)")
+            return []
+        }
+    }
+
+    func fetchCommitDetail(owner: String, repo: String, sha: String, token: String?) async -> GitHubCommitDetail? {
+        guard let url = URL(string: "https://api.github.com/repos/\(owner)/\(repo)/commits/\(sha)") else { return nil }
+
+        var request = URLRequest(url: url)
+        request.httpMethod = "GET"
+        if let token, !token.isEmpty {
+            request.addValue("Bearer \(token)", forHTTPHeaderField: "Authorization")
+        }
+        request.addValue("application/vnd.github+json", forHTTPHeaderField: "Accept")
+        request.addValue("GitGudApp", forHTTPHeaderField: "User-Agent")
+
+        do {
+            let (data, response) = try await URLSession.shared.data(for: request)
+            guard let httpResponse = response as? HTTPURLResponse, httpResponse.statusCode == 200 else { return nil }
+            return try JSONDecoder().decode(GitHubCommitDetail.self, from: data)
+        } catch {
+            print("Error fetching commit detail: \(error)")
+            return nil
+        }
+    }
+
+    func toggleStar(owner: String, repo: String, isStarred: Bool, token: String?) async -> Bool {
+        guard let token, !token.isEmpty else { return false }
+        guard let url = URL(string: "https://api.github.com/user/starred/\(owner)/\(repo)") else { return false }
+
+        var request = URLRequest(url: url)
+        request.httpMethod = isStarred ? "PUT" : "DELETE"
+        request.addValue("Bearer \(token)", forHTTPHeaderField: "Authorization")
+        request.addValue("application/vnd.github+json", forHTTPHeaderField: "Accept")
+        request.addValue("GitMateApp", forHTTPHeaderField: "User-Agent")
+
+        do {
+            let (_, response) = try await URLSession.shared.data(for: request)
+            guard let httpResponse = response as? HTTPURLResponse else { return false }
+            return httpResponse.statusCode == 204
+        } catch {
+            print("Failed to toggle star: \(error)")
+            return false
+        }
     }
 }

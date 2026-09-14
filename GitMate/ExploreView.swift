@@ -470,120 +470,163 @@ struct ExploreView: View {
         (activityCardHeight * visibleCardCount) + (activitySpacing * (visibleCardCount - 1)) + 32
     }
 
+    private var appBackground: some View {
+        LinearGradient(
+            colors: [
+                Color(red: 0.05, green: 0.09, blue: 0.12),
+                Color(red: 0.03, green: 0.08, blue: 0.16),
+                Color(red: 0.04, green: 0.05, blue: 0.12),
+            ],
+            startPoint: .topLeading,
+            endPoint: .bottomTrailing
+        )
+        .overlay(
+            ZStack {
+                RadialGradient(
+                    colors: [Color.cyan.opacity(0.14), .clear],
+                    center: .topLeading,
+                    startRadius: 20,
+                    endRadius: 320
+                )
+
+                RadialGradient(
+                    colors: [Color.blue.opacity(0.14), .clear],
+                    center: .bottomTrailing,
+                    startRadius: 20,
+                    endRadius: 340
+                )
+            }
+        )
+        .ignoresSafeArea()
+    }
+
     var body: some View {
-        ScrollView(showsIndicators: false) {
-            VStack(alignment: .leading, spacing: 36) {
-                VStack(alignment: .leading, spacing: 16) {
-                    HStack {
-                        Text("Trending This Week")
-                            .font(.system(size: 26, weight: .bold, design: .rounded))
-                            .foregroundStyle(.white)
+        NavigationStack {
+            ZStack {
+                appBackground
 
-                        Spacer()
+                ScrollView(showsIndicators: false) {
+                    VStack(alignment: .leading, spacing: 36) {
+                        VStack(alignment: .leading, spacing: 16) {
+                            HStack {
+                                Text("Trending This Week")
+                                    .font(.system(size: 26, weight: .bold, design: .rounded))
+                                    .foregroundStyle(.white)
 
-                        Button {
-                            isSearchPresented.toggle()
-                        } label: {
-                            Image(systemName: "magnifyingglass")
-                                .font(.system(size: 18, weight: .semibold))
-                                .foregroundStyle(.white.opacity(0.8))
-                                .padding(10)
-                                .background(Color.white.opacity(0.08))
-                                .clipShape(Circle())
-                        }
-                    }
+                                Spacer()
 
-                    if viewModel.isLoading && viewModel.trendingRepos.isEmpty {
-                        ProgressView()
-                            .frame(maxWidth: .infinity)
-                            .padding(.vertical, 40)
-                    } else {
-                        ScrollView(.horizontal, showsIndicators: false) {
-                            HStack(spacing: 16) {
-                                ForEach(viewModel.trendingRepos.indices, id: \.self) { index in
-                                    TrendingCardView(repo: $viewModel.trendingRepos[index]) { isStarred in
-                                        await viewModel.toggleStar(
-                                            owner: viewModel.trendingRepos[index].owner,
-                                            repo: viewModel.trendingRepos[index].name,
-                                            isStarred: isStarred
-                                        )
+                                Button {
+                                    isSearchPresented.toggle()
+                                } label: {
+                                    Image(systemName: "magnifyingglass")
+                                        .font(.system(size: 18, weight: .semibold))
+                                        .foregroundStyle(.white.opacity(0.8))
+                                        .padding(10)
+                                        .background(Color.white.opacity(0.08))
+                                        .clipShape(Circle())
+                                }
+                            }
+
+                            if viewModel.isLoading && viewModel.trendingRepos.isEmpty {
+                                ProgressView()
+                                    .frame(maxWidth: .infinity)
+                                    .padding(.vertical, 40)
+                            } else {
+                                ScrollView(.horizontal, showsIndicators: false) {
+                                    HStack(spacing: 16) {
+                                        ForEach(viewModel.trendingRepos.indices, id: \.self) { index in
+                                            NavigationLink(destination: RepositoryDetailView(owner: viewModel.trendingRepos[index].owner, repo: viewModel.trendingRepos[index].name)) {
+                                                TrendingCardView(repo: $viewModel.trendingRepos[index]) { isStarred in
+                                                    await viewModel.toggleStar(
+                                                        owner: viewModel.trendingRepos[index].owner,
+                                                        repo: viewModel.trendingRepos[index].name,
+                                                        isStarred: isStarred
+                                                    )
+                                                }
+                                                .frame(width: 330)
+                                            }
+                                            .buttonStyle(PlainButtonStyle())
+                                        }
                                     }
-                                    .frame(width: 330)
                                 }
                             }
                         }
-                    }
-                }
 
-                VStack(alignment: .leading, spacing: 16) {
-                    Text("Explore")
-                        .font(.system(size: 26, weight: .bold, design: .rounded))
-                        .foregroundStyle(.white)
+                        VStack(alignment: .leading, spacing: 16) {
+                            Text("Explore")
+                                .font(.system(size: 26, weight: .bold, design: .rounded))
+                                .foregroundStyle(.white)
 
-                    if viewModel.isLoading && viewModel.exploreActivities.isEmpty {
-                        ProgressView()
-                            .frame(maxWidth: .infinity)
-                            .padding(.vertical, 40)
-                    } else {
-                        VStack(alignment: .leading, spacing: 12) {
-                            ScrollView(.vertical, showsIndicators: false) {
-                                LazyVStack(spacing: 14) {
-                                    ForEach(viewModel.exploreActivities) { activity in
-                                        ExploreActivityCard(activity: activity)
+                            if viewModel.isLoading && viewModel.exploreActivities.isEmpty {
+                                ProgressView()
+                                    .frame(maxWidth: .infinity)
+                                    .padding(.vertical, 40)
+                            } else {
+                                VStack(alignment: .leading, spacing: 12) {
+                                    ScrollView(.vertical, showsIndicators: false) {
+                                        LazyVStack(spacing: 14) {
+                                            ForEach(viewModel.exploreActivities) { activity in
+                                                ExploreActivityCard(activity: activity)
+                                            }
+                                        }
+                                        .padding(16)
                                     }
                                 }
-                                .padding(16)
-                            }
-                        }
-                        .frame(height: exploreFeedBoxHeight)
-                        .background(Color.white.opacity(0.05))
-                        .clipShape(RoundedRectangle(cornerRadius: 16, style: .continuous))
-                        .overlay(
-                            RoundedRectangle(cornerRadius: 16, style: .continuous)
-                                .stroke(Color.white.opacity(0.08), lineWidth: 1)
-                        )
-                    }
-                }
-
-                if viewModel.suggestedRepo != nil || viewModel.isLoading {
-                    VStack(alignment: .leading, spacing: 32) {
-                        Text("Suggested Repository")
-                            .font(.system(size: 26, weight: .bold, design: .rounded))
-                            .foregroundStyle(.white)
-
-                        if viewModel.isLoading && viewModel.suggestedRepo == nil {
-                            ProgressView()
-                                .frame(maxWidth: .infinity)
-                                .padding(.vertical, 40)
-                        } else if let suggestedRepo = viewModel.suggestedRepo {
-                            TrendingCardView(repo: Binding(
-                                get: { viewModel.suggestedRepo ?? suggestedRepo },
-                                set: { viewModel.suggestedRepo = $0 }
-                            )) { isStarred in
-                                guard let currentRepo = viewModel.suggestedRepo else { return false }
-
-                                return await viewModel.toggleStar(
-                                    owner: currentRepo.owner,
-                                    repo: currentRepo.name,
-                                    isStarred: isStarred
+                                .frame(height: exploreFeedBoxHeight)
+                                .background(Color.white.opacity(0.05))
+                                .clipShape(RoundedRectangle(cornerRadius: 16, style: .continuous))
+                                .overlay(
+                                    RoundedRectangle(cornerRadius: 16, style: .continuous)
+                                        .stroke(Color.white.opacity(0.08), lineWidth: 1)
                                 )
                             }
-                            .frame(height: 200)
                         }
+
+                        if viewModel.suggestedRepo != nil || viewModel.isLoading {
+                            VStack(alignment: .leading, spacing: 32) {
+                                Text("Suggested Repository")
+                                    .font(.system(size: 26, weight: .bold, design: .rounded))
+                                    .foregroundStyle(.white)
+
+                                if viewModel.isLoading && viewModel.suggestedRepo == nil {
+                                    ProgressView()
+                                        .frame(maxWidth: .infinity)
+                                        .padding(.vertical, 40)
+                                } else if let suggestedRepo = viewModel.suggestedRepo {
+                                    NavigationLink(destination: RepositoryDetailView(owner: suggestedRepo.owner, repo: suggestedRepo.name)) {
+                                        TrendingCardView(repo: Binding(
+                                            get: { viewModel.suggestedRepo ?? suggestedRepo },
+                                            set: { viewModel.suggestedRepo = $0 }
+                                        )) { isStarred in
+                                            guard let currentRepo = viewModel.suggestedRepo else { return false }
+
+                                            return await viewModel.toggleStar(
+                                                owner: currentRepo.owner,
+                                                repo: currentRepo.name,
+                                                isStarred: isStarred
+                                            )
+                                        }
+                                        .frame(height: 200)
+                                    }
+                                    .buttonStyle(PlainButtonStyle())
+                                }
+                            }
+                        }
+                    }
+                    .padding(.horizontal, 20)
+                    .padding(.top, 16)
+                    .padding(.bottom, 140)
+                }
+                .refreshable {
+                    await viewModel.fetchData()
+                }
+                .task {
+                    if viewModel.trendingRepos.isEmpty && viewModel.exploreActivities.isEmpty {
+                        await viewModel.fetchData()
                     }
                 }
             }
-            .padding(.horizontal, 20)
-            .padding(.top, 16)
-            .padding(.bottom, 140)
-        }
-        .refreshable {
-            await viewModel.fetchData()
-        }
-        .task {
-            if viewModel.trendingRepos.isEmpty && viewModel.exploreActivities.isEmpty {
-                await viewModel.fetchData()
-            }
+            .toolbarBackground(.hidden, for: .navigationBar)
         }
     }
 }

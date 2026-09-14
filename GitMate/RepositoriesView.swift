@@ -350,132 +350,172 @@ struct RepositoriesView: View {
     @EnvironmentObject var sessionStore: SessionStore
     @StateObject private var viewModel = RepositoriesViewModel()
 
+    private var appBackground: some View {
+        LinearGradient(
+            colors: [
+                Color(red: 0.05, green: 0.09, blue: 0.12),
+                Color(red: 0.03, green: 0.08, blue: 0.16),
+                Color(red: 0.04, green: 0.05, blue: 0.12),
+            ],
+            startPoint: .topLeading,
+            endPoint: .bottomTrailing
+        )
+        .overlay(
+            ZStack {
+                RadialGradient(
+                    colors: [Color.cyan.opacity(0.14), .clear],
+                    center: .topLeading,
+                    startRadius: 20,
+                    endRadius: 320
+                )
+
+                RadialGradient(
+                    colors: [Color.blue.opacity(0.14), .clear],
+                    center: .bottomTrailing,
+                    startRadius: 20,
+                    endRadius: 340
+                )
+            }
+        )
+        .ignoresSafeArea()
+    }
+
     var body: some View {
-        ScrollView(showsIndicators: false) {
-            VStack(alignment: .leading, spacing: 24) {
-                VStack(alignment: .leading, spacing: 8) {
-                    Text("Repositories")
-                        .font(.system(size: 34, weight: .bold, design: .default))
-                        .foregroundStyle(.white)
+        NavigationStack {
+            ZStack {
+                appBackground
 
-                    Text("Manage and explore your codebase.")
-                        .font(.system(size: 18, weight: .regular))
-                        .foregroundStyle(.white.opacity(0.7))
-                }
-                .padding(.horizontal, 20)
-                .padding(.top, 16)
+                ScrollView(showsIndicators: false) {
+                    VStack(alignment: .leading, spacing: 24) {
+                        VStack(alignment: .leading, spacing: 8) {
+                            Text("Repositories")
+                                .font(.system(size: 34, weight: .bold, design: .default))
+                                .foregroundStyle(.white)
 
-                if viewModel.isLoading && viewModel.allRepositories.isEmpty {
-                    ProgressView()
-                        .progressViewStyle(CircularProgressViewStyle(tint: .white))
-                        .frame(maxWidth: .infinity, alignment: .center)
-                        .padding(.top, 40)
-                } else if let error = viewModel.errorMessage {
-                    Text(error)
-                        .foregroundStyle(.red)
-                        .frame(maxWidth: .infinity, alignment: .center)
-                        .padding(.top, 40)
-                } else {
-                    ScrollView(.horizontal, showsIndicators: false) {
-                        HStack(spacing: 12) {
-                            ForEach(viewModel.filters, id: \.self) { filter in
-                                Button {
-                                    withAnimation {
-                                        viewModel.selectedFilter = filter
-                                    }
-                                } label: {
-                                    Group {
-                                        if filter == "All" {
-                                            Text(filter)
-                                                .font(.system(size: 15, weight: .semibold))
-                                        } else {
-                                            let isMd = filter.lowercased() == "md" || filter.lowercased() == "markdown"
-                                            Image(viewModel.getLogoAssetIdentifier(filter))
-                                                .resizable()
-                                                .scaledToFit()
-                                                .frame(width: isMd ? 30 : 30, height: isMd ? 30 : 30)
-                                        }
-                                    }
-                                    .foregroundStyle(viewModel.selectedFilter == filter ? Color.cyan : .white.opacity(0.8))
-                                    .padding(.horizontal, filter == "All" ? 16 : 12)
-                                    .padding(.vertical, 8)
-                                    .background(
-                                        viewModel.selectedFilter == filter
-                                            ? Color.cyan.opacity(0.15)
-                                            : Color.white.opacity(0.05)
-                                    )
-                                    .clipShape(Capsule())
-                                    .overlay(
-                                        Capsule()
-                                            .stroke(
-                                                viewModel.selectedFilter == filter
-                                                    ? Color.cyan
-                                                    : Color.white.opacity(0.1),
-                                                lineWidth: 1
-                                            )
-                                    )
-                                }
-                            }
+                            Text("Manage and explore your codebase.")
+                                .font(.system(size: 18, weight: .regular))
+                                .foregroundStyle(.white.opacity(0.7))
                         }
                         .padding(.horizontal, 20)
-                    }
+                        .padding(.top, 16)
 
-                    LazyVStack(spacing: 16) {
-                        ForEach(viewModel.filteredRepositories) { repo in
-                            RepositoryCardView(
-                                repo: repo,
-                                onStar: { shouldStar in
-                                    let success = await viewModel.toggleStar(
-                                        owner: repo.owner,
-                                        repo: repo.name,
-                                        isStarred: shouldStar,
-                                        token: sessionStore.savedAccessKey
-                                    )
-
-                                    if success {
-                                        await MainActor.run {
-                                            if let index = viewModel.allRepositories.firstIndex(where: { $0.id == repo.id }) {
-                                                viewModel.allRepositories[index].isStarred = shouldStar
+                        if viewModel.isLoading && viewModel.allRepositories.isEmpty {
+                            ProgressView()
+                                .progressViewStyle(CircularProgressViewStyle(tint: .white))
+                                .frame(maxWidth: .infinity, alignment: .center)
+                                .padding(.top, 40)
+                        } else if let error = viewModel.errorMessage {
+                            Text(error)
+                                .foregroundStyle(.red)
+                                .frame(maxWidth: .infinity, alignment: .center)
+                                .padding(.top, 40)
+                        } else {
+                            ScrollView(.horizontal, showsIndicators: false) {
+                                HStack(spacing: 12) {
+                                    ForEach(viewModel.filters, id: \.self) { filter in
+                                        Button {
+                                            withAnimation {
+                                                viewModel.selectedFilter = filter
                                             }
+                                        } label: {
+                                            Group {
+                                                if filter == "All" {
+                                                    Text(filter)
+                                                        .font(.system(size: 15, weight: .semibold))
+                                                } else {
+                                                    let isMd = filter.lowercased() == "md" || filter.lowercased() == "markdown"
+                                                    Image(viewModel.getLogoAssetIdentifier(filter))
+                                                        .resizable()
+                                                        .scaledToFit()
+                                                        .frame(width: isMd ? 30 : 30, height: isMd ? 30 : 30)
+                                                }
+                                            }
+                                            .foregroundStyle(viewModel.selectedFilter == filter ? Color.cyan : .white.opacity(0.8))
+                                            .padding(.horizontal, filter == "All" ? 16 : 12)
+                                            .padding(.vertical, 8)
+                                            .background(
+                                                viewModel.selectedFilter == filter
+                                                    ? Color.cyan.opacity(0.15)
+                                                    : Color.white.opacity(0.05)
+                                            )
+                                            .clipShape(Capsule())
+                                            .overlay(
+                                                Capsule()
+                                                    .stroke(
+                                                        viewModel.selectedFilter == filter
+                                                            ? Color.cyan
+                                                            : Color.white.opacity(0.1),
+                                                        lineWidth: 1
+                                                    )
+                                            )
                                         }
                                     }
-
-                                    return success
-                                },
-                                onDelete: {
-                                    let success = await viewModel.deleteRepository(
-                                        owner: repo.owner,
-                                        repo: repo.name,
-                                        token: sessionStore.savedAccessKey
-                                    )
-
-                                    if success {
-                                        await MainActor.run {
-                                            viewModel.removeRepository(repo)
-                                        }
-                                    }
-
-                                    return success
                                 }
-                            )
+                                .padding(.horizontal, 20)
+                            }
+
+                            LazyVStack(spacing: 16) {
+                                ForEach(viewModel.filteredRepositories) { repo in
+                                    NavigationLink(destination: RepositoryDetailView(owner: repo.owner, repo: repo.name)) {
+                                        RepositoryCardView(
+                                            repo: repo,
+                                            onStar: { shouldStar in
+                                                let success = await viewModel.toggleStar(
+                                                    owner: repo.owner,
+                                                    repo: repo.name,
+                                                    isStarred: shouldStar,
+                                                    token: sessionStore.savedAccessKey
+                                                )
+
+                                                if success {
+                                                    await MainActor.run {
+                                                        if let index = viewModel.allRepositories.firstIndex(where: { $0.id == repo.id }) {
+                                                            viewModel.allRepositories[index].isStarred = shouldStar
+                                                        }
+                                                    }
+                                                }
+
+                                                return success
+                                            },
+                                            onDelete: {
+                                                let success = await viewModel.deleteRepository(
+                                                    owner: repo.owner,
+                                                    repo: repo.name,
+                                                    token: sessionStore.savedAccessKey
+                                                )
+
+                                                if success {
+                                                    await MainActor.run {
+                                                        viewModel.removeRepository(repo)
+                                                    }
+                                                }
+
+                                                return success
+                                            }
+                                        )
+                                    }
+                                    .buttonStyle(PlainButtonStyle())
+                                }
+                            }
+                            .padding(.horizontal, 20)
+                            .padding(.bottom, 140)
                         }
                     }
-                    .padding(.horizontal, 20)
-                    .padding(.bottom, 140)
+                }
+                .task {
+                    await viewModel.fetchRepositories(
+                        username: sessionStore.githubUsername,
+                        token: sessionStore.savedAccessKey
+                    )
+                }
+                .refreshable {
+                    await viewModel.fetchRepositories(
+                        username: sessionStore.githubUsername,
+                        token: sessionStore.savedAccessKey
+                    )
                 }
             }
-        }
-        .task {
-            await viewModel.fetchRepositories(
-                username: sessionStore.githubUsername,
-                token: sessionStore.savedAccessKey
-            )
-        }
-        .refreshable {
-            await viewModel.fetchRepositories(
-                username: sessionStore.githubUsername,
-                token: sessionStore.savedAccessKey
-            )
+            .toolbarBackground(.hidden, for: .navigationBar)
         }
     }
 }

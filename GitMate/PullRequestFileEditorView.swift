@@ -13,6 +13,8 @@ struct PullRequestFileEditorView: View {
     let headBranch: String
     let filePath: String
     let token: String?
+    var isPullRequest: Bool = true
+    var canCommit: Bool = true
 
     var onCommitSuccess: (() -> Void)?
 
@@ -147,15 +149,17 @@ struct PullRequestFileEditorView: View {
             Button("Close") { dismiss() }
         }
         ToolbarItem(placement: .navigationBarTrailing) {
-            Button {
-                commitMessage = "Update \(filename)"
-                commitError = nil
-                showCommitSheet = true
-            } label: {
-                Label("Commit", systemImage: "arrow.up.circle")
-                    .foregroundStyle(hasChanges ? Color.cyan : Color.white.opacity(0.3))
+            if canCommit {
+                Button {
+                    commitMessage = "Update \(filename)"
+                    commitError = nil
+                    showCommitSheet = true
+                } label: {
+                    Label("Commit", systemImage: "arrow.up.circle")
+                        .foregroundStyle(hasChanges ? Color.cyan : Color.white.opacity(0.3))
+                }
+                .disabled(!hasChanges || isLoading || isCommitting)
             }
-            .disabled(!hasChanges || isLoading || isCommitting)
         }
     }
 
@@ -225,7 +229,7 @@ struct PullRequestFileEditorView: View {
                         .fontWeight(.semibold)
                 }
 
-                Text("This will update the Pull Request automatically.")
+                Text(isPullRequest ? "This will update the Pull Request automatically." : "This will update the file directly on the branch.")
                     .font(.caption)
                     .foregroundStyle(.white.opacity(0.5))
                     .padding(.top, 2)

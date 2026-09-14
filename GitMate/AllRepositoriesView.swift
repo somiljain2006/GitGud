@@ -29,7 +29,10 @@ struct AllRepositoriesView: View {
                                     .foregroundStyle(.white)
 
                                 ForEach(pinnedRepos) { repo in
-                                    PinnedRepoCard(repo: repo)
+                                    NavigationLink(destination: RepositoryDetailView(owner: username, repo: repo.name)) {
+                                        PinnedRepoCard(repo: repo)
+                                    }
+                                    .buttonStyle(PlainButtonStyle())
                                 }
                             }
                         }
@@ -48,29 +51,32 @@ struct AllRepositoriesView: View {
                                     .foregroundStyle(.secondary)
                             } else {
                                 ForEach(allRepos) { repo in
-                                    VStack(alignment: .leading, spacing: 6) {
-                                        Text(repo.name)
-                                            .font(.headline)
-                                            .foregroundStyle(.cyan)
+                                    NavigationLink(destination: RepositoryDetailView(owner: username, repo: repo.name)) {
+                                        VStack(alignment: .leading, spacing: 6) {
+                                            Text(repo.name)
+                                                .font(.headline)
+                                                .foregroundStyle(.cyan)
 
-                                        if let description = repo.description {
-                                            Text(description)
-                                                .font(.subheadline)
-                                                .foregroundStyle(.gray)
-                                                .lineLimit(2)
-                                        }
+                                            if let description = repo.description {
+                                                Text(description)
+                                                    .font(.subheadline)
+                                                    .foregroundStyle(.gray)
+                                                    .lineLimit(2)
+                                            }
 
-                                        if let language = repo.language {
-                                            Text(language)
-                                                .font(.caption)
-                                                .foregroundStyle(.secondary)
-                                                .padding(.top, 4)
+                                            if let language = repo.language {
+                                                Text(language)
+                                                    .font(.caption)
+                                                    .foregroundStyle(.secondary)
+                                                    .padding(.top, 4)
+                                            }
                                         }
+                                        .padding()
+                                        .frame(maxWidth: .infinity, alignment: .leading)
+                                        .background(Color.white.opacity(0.05))
+                                        .clipShape(RoundedRectangle(cornerRadius: 12))
                                     }
-                                    .padding()
-                                    .frame(maxWidth: .infinity, alignment: .leading)
-                                    .background(Color.white.opacity(0.05))
-                                    .clipShape(RoundedRectangle(cornerRadius: 12))
+                                    .buttonStyle(PlainButtonStyle())
                                 }
                             }
                         }

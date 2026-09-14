@@ -272,4 +272,61 @@ struct GitHubGraphQLService {
             return false
         }
     }
+
+    func fetchRepositoryDetail(
+        owner: String,
+        repo: String,
+        token: String?
+    ) async -> GraphQLRepositoryDetail? {
+        let query = """
+        {
+          repository(owner: "\(owner)", name: "\(repo)") {
+            name
+            nameWithOwner
+            owner { login }
+            description
+            homepageUrl
+            isPrivate
+            viewerHasStarred
+            viewerSubscription
+            viewerPermission
+            licenseInfo { name }
+            stargazerCount
+            forkCount
+            watchers { totalCount }
+            issues(states: OPEN) { totalCount }
+            pullRequests(states: OPEN) { totalCount }
+            defaultBranchRef {
+              name
+              target {
+                ... on Commit {
+                  history(first: 1) {
+                    nodes {
+                      message
+                      author { user { login } }
+                      committedDate
+                    }
+                  }
+                }
+              }
+            }
+            languages(first: 10, orderBy: {field: SIZE, direction: DESC}) {
+              edges { size node { name color } }
+              totalSize
+            }
+            object(expression: "HEAD:README.md") {
+              ... on Blob { text }
+            }
+          }
+        }
+        """
+
+        do {
+            let decoded: GraphQLRepositoryDetailResponse = try await executeGraphQL(query: query, token: token)
+            return decoded.data?.repository
+        } catch {
+            print("GraphQL fetchRepositoryDetail error: \(error)")
+            return nil
+        }
+    }
 }
