@@ -31,19 +31,14 @@ A comprehensive iOS application built with SwiftUI for developers and open-sourc
 
 <table>
   <tr>
-    <td><img src="https://github.com/user-attachments/assets/ec430e29-9547-4e11-a83c-32086aa1c2cc" width="220"/></td>
-    <td><img src="https://github.com/user-attachments/assets/08651a46-4abb-47d6-9d09-0f400904e6ff" width="220"/></td>
-    <td><img src="https://github.com/user-attachments/assets/0a43990e-6623-4ac8-bf32-c5cb95b4d651" width="220"/></td>
+    <td><img src="Screenshots/IMG_6274.PNG" width="220"/></td>
+    <td><img src="Screenshots/IMG_6273.PNG" width="220"/></td>
+    <td><img src="Screenshots/IMG_6272.PNG" width="220"/></td>
   </tr>
   <tr>
-    <td><img src="https://github.com/user-attachments/assets/e8d15fdf-336a-42a9-a8bc-97e236ce3c64" width="220"/></td>
-    <td><img src="https://github.com/user-attachments/assets/f8b8abeb-7e48-48f0-8633-a214d6461851" width="220"/></td>
-    <td><img src="https://github.com/user-attachments/assets/e6845185-b727-48c4-a073-e68090a79c6c" width="220"/></td>
-  </tr>
-  <tr>
-    <td><img src="https://github.com/user-attachments/assets/45abad4c-f3d5-4158-9f8e-e8d756e5ee55" width="220"/></td>
-    <td><img src="https://github.com/user-attachments/assets/3528dcfb-2f01-4668-98c8-012897dc2505" width="220"/></td>
-    <td><img src="https://github.com/user-attachments/assets/a5eac292-eca1-432b-9f4f-b616b7316037" width="220"/></td>
+    <td><img src="Screenshots/IMG_6268.PNG" width="220"/></td>
+    <td><img src="Screenshots/IMG_6267.PNG" width="220"/></td>
+    <td><img src="Screenshots/IMG_6266.PNG" width="220"/></td>
   </tr>
 </table>
 
