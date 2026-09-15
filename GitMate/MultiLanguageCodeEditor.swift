@@ -32,7 +32,10 @@ struct MultiLanguageCodeEditor: UIViewRepresentable {
         if uiView.text != text {
             let selectedRange = uiView.selectedRange
             uiView.attributedText = context.coordinator.highlight(text, filePath: filePath)
-            uiView.selectedRange = selectedRange
+
+            let safeLocation = min(selectedRange.location, text.utf16.count)
+            let safeLength = min(selectedRange.length, text.utf16.count - safeLocation)
+            uiView.selectedRange = NSRange(location: safeLocation, length: safeLength)
         }
     }
 

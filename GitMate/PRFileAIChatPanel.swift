@@ -40,6 +40,15 @@ struct PRFileAIChatPanel: View {
         """
     }
 
+    @StateObject private var recognizer = VoiceRecognizer()
+    @StateObject private var orbiSpeaker = OrbiSpeaker()
+    @AppStorage("enableHeyOrbi") private var enableHeyOrbi: Bool = false
+    @Environment(\.scenePhase) private var scenePhase
+
+    @State private var textBeforeListening = ""
+    @State private var isManuallyListening = false
+    @State private var usedVoiceForLastPrompt = false
+
     var body: some View {
         VStack(spacing: 0) {
             panelHeader
@@ -54,24 +63,91 @@ struct PRFileAIChatPanel: View {
         .background(Color(red: 0.05, green: 0.09, blue: 0.12))
         .clipShape(RoundedRectangle(cornerRadius: 20, style: .continuous))
         .shadow(color: .black.opacity(0.4), radius: 24, x: 0, y: 8)
+        .task {
+            recognizer.onWakeWordDetected = {
+                handleWakeWordDetected()
+            }
+            let authorized = await recognizer.requestPermissions()
+            if authorized && enableHeyOrbi {
+                recognizer.startWakeWordListening()
+            }
+        }
+        .onChange(of: enableHeyOrbi) {
+            if enableHeyOrbi {
+                recognizer.startWakeWordListening()
+            } else {
+                recognizer.stopWakeWordListening()
+            }
+        }
+        .onChange(of: scenePhase) {
+            if scenePhase != .active {
+                recognizer.stopWakeWordListening()
+                recognizer.stopListening()
+                orbiSpeaker.stop()
+            } else if enableHeyOrbi && !recognizer.isListening {
+                recognizer.startWakeWordListening()
+            }
+        }
+        .onChange(of: recognizer.transcript) {
+            syncRecognizedTranscript()
+        }
+        .onChange(of: recognizer.isListening) {
+            if !recognizer.isListening {
+                isManuallyListening = false
+                if enableHeyOrbi && scenePhase == .active {
+                    recognizer.startWakeWordListening()
+                }
+            }
+        }
+        .onDisappear {
+            recognizer.stopWakeWordListening()
+            recognizer.stopListening()
+            orbiSpeaker.stop()
+        }
+    }
+
+    private func handleWakeWordDetected() {
+        let generator = UINotificationFeedbackGenerator()
+        generator.notificationOccurred(.success)
+
+        let currentInput = inputText
+            .trimmingCharacters(in: .whitespacesAndNewlines)
+
+        textBeforeListening = currentInput
+
+        let voiceRecognizer = recognizer
+
+        DispatchQueue.main.asyncAfter(deadline: .now() + 0.3) {
+            voiceRecognizer.startListening(preservingWakePhrase: true)
+
+            isManuallyListening = true
+            usedVoiceForLastPrompt = true
+        }
     }
 
     private var panelHeader: some View {
-        HStack(spacing: 10) {
+        HStack {
+            Image(systemName: "sparkles")
+                .foregroundStyle(.cyan)
+            Text("Ask Orbi about \(filename)")
+                .font(.subheadline.weight(.semibold))
+                .foregroundStyle(.white)
+                .lineLimit(1)
+                .truncationMode(.middle)
             Spacer()
-
-            Button {
-                onClose()
-            } label: {
-                Image(systemName: "xmark.circle.fill")
-                    .font(.title3)
-                    .foregroundStyle(.white.opacity(0.5))
+            Button(action: onClose) {
+                Image(systemName: "xmark")
+                    .font(.caption.weight(.bold))
+                    .foregroundStyle(.white.opacity(0.6))
+                    .padding(6)
+                    .background(Color.white.opacity(0.1))
+                    .clipShape(Circle())
             }
             .buttonStyle(.plain)
-            .accessibilityLabel("Close AI Panel")
         }
         .padding(.horizontal, 16)
         .padding(.vertical, 12)
+        .background(Color.white.opacity(0.03))
     }
 
     private var chatScrollView: some View {
@@ -148,8 +224,8 @@ struct PRFileAIChatPanel: View {
 
     private var inputBar: some View {
         VStack(spacing: 0) {
-            if let errorMessage {
-                Text(errorMessage)
+            if let error = errorMessage ?? recognizer.errorMessage {
+                Text(error)
                     .font(.caption)
                     .foregroundStyle(.red)
                     .frame(maxWidth: .infinity, alignment: .leading)
@@ -158,8 +234,15 @@ struct PRFileAIChatPanel: View {
             }
 
             HStack(spacing: 10) {
-                Image(systemName: "sparkles")
-                    .foregroundStyle(.cyan)
+                if recognizer.isListening {
+                    Image(systemName: "waveform.circle.fill")
+                        .font(.title3)
+                        .foregroundStyle(.cyan)
+                        .symbolEffect(.pulse)
+                } else {
+                    Image(systemName: "sparkles")
+                        .foregroundStyle(.cyan)
+                }
 
                 TextField(
                     "Ask about this file…",
@@ -171,6 +254,33 @@ struct PRFileAIChatPanel: View {
                 .foregroundStyle(.white)
                 .submitLabel(.send)
                 .onSubmit { sendMessage() }
+
+                if recognizer.isListening {
+                    Button {
+                        recognizer.stopListening()
+                    } label: {
+                        Image(systemName: "stop.circle.fill")
+                            .font(.title3)
+                            .foregroundStyle(.red)
+                    }
+                    .buttonStyle(.plain)
+                } else {
+                    Button {
+                        textBeforeListening = inputText
+                            .trimmingCharacters(in: .whitespacesAndNewlines)
+
+                        recognizer.startListening(preservingWakePhrase: false)
+
+                        isManuallyListening = true
+                        usedVoiceForLastPrompt = true
+                    } label: {
+                        Image(systemName: "mic.fill")
+                            .font(.title3)
+                            .foregroundStyle(isLoading ? .gray : .cyan)
+                    }
+                    .buttonStyle(.plain)
+                    .disabled(isLoading)
+                }
 
                 if !inputText.isEmpty {
                     Button {
@@ -186,6 +296,22 @@ struct PRFileAIChatPanel: View {
             }
             .padding(.horizontal, 14)
             .padding(.vertical, 10)
+        }
+    }
+
+    private func syncRecognizedTranscript() {
+        let spokenText = recognizer.transcript
+            .trimmingCharacters(in: .whitespacesAndNewlines)
+
+        let baseText = textBeforeListening
+            .trimmingCharacters(in: .whitespacesAndNewlines)
+
+        if baseText.isEmpty {
+            inputText = spokenText
+        } else if spokenText.isEmpty {
+            inputText = baseText
+        } else {
+            inputText = "\(baseText) \(spokenText)"
         }
     }
 
@@ -257,7 +383,18 @@ struct PRFileAIChatPanel: View {
     }
 
     private func sendMessage() {
-        let trimmed = inputText.trimmingCharacters(in: .whitespacesAndNewlines)
+        if recognizer.isListening {
+            recognizer.stopListening()
+        }
+
+        let pattern = "(?i)\\bhey orb[iy]\\b[.,!?]*\\s*"
+        var cleanedText = inputText
+        if let regex = try? NSRegularExpression(pattern: pattern, options: []) {
+            let range = NSRange(location: 0, length: inputText.utf16.count)
+            cleanedText = regex.stringByReplacingMatches(in: inputText, options: [], range: range, withTemplate: "")
+        }
+
+        let trimmed = cleanedText.trimmingCharacters(in: .whitespacesAndNewlines)
         guard !trimmed.isEmpty, !isLoading else { return }
 
         errorMessage = nil
@@ -266,6 +403,7 @@ struct PRFileAIChatPanel: View {
         let previousConversation = messages
         messages.append(AIChatMessage(role: .user, content: trimmed))
         inputText = ""
+        textBeforeListening = ""
         isLoading = true
 
         Task {
@@ -282,6 +420,11 @@ struct PRFileAIChatPanel: View {
                     )
                     lastExtractedCode = extractCodeBlock(from: response)
                     isLoading = false
+
+                    if usedVoiceForLastPrompt || enableHeyOrbi {
+                        orbiSpeaker.speak(response)
+                        usedVoiceForLastPrompt = false
+                    }
                 }
             } catch {
                 await MainActor.run {

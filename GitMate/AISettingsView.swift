@@ -13,6 +13,7 @@ struct AISettingsView: View {
     @State private var model = ""
     @State private var apiKey = ""
     @State private var baseURL = ""
+    @AppStorage("enableHeyOrbi") private var enableHeyOrbi = false
 
     var body: some View {
         NavigationStack {
@@ -43,6 +44,10 @@ struct AISettingsView: View {
                     .keyboardType(.URL)
                     .textInputAutocapitalization(.never)
                     .autocorrectionDisabled()
+                }
+
+                Section("Voice Assistant") {
+                    Toggle("Enable Hey Orbi listening", isOn: $enableHeyOrbi)
                 }
 
                 Section {
