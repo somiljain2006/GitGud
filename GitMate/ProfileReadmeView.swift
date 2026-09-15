@@ -65,14 +65,21 @@ struct ReadmeWebView: UIViewRepresentable {
     private var cssStyles: String {
         """
         :root { color-scheme: light dark; }
+        html, body {
+            width: 100%;
+            max-width: 100vw;
+            overflow-x: hidden;
+        }
         body {
             font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Helvetica, Arial, sans-serif;
             font-size: 16px;
             line-height: 1.5;
             padding: 16px;
             margin: 0;
+            box-sizing: border-box;
             color: #c9d1d9;
         }
+        * { box-sizing: border-box; }
         @media (prefers-color-scheme: light) {
             body { color: #24292f; }
         }
@@ -80,15 +87,15 @@ struct ReadmeWebView: UIViewRepresentable {
         img { max-width: 100%; height: auto; border-radius: 6px; }
         a { color: #58a6ff; text-decoration: none; }
         h1, h2 { border-bottom: 1px solid #30363d; padding-bottom: 0.3em; margin-top: 24px; }
-        pre { background-color: rgba(110,118,129,0.1); padding: 16px; border-radius: 6px; overflow: auto; }
-        code { font-family: ui-monospace, SFMono-Regular, SF Mono, Menlo, Consolas, monospace; background-color: rgba(110,118,129,0.2); padding: 0.2em 0.4em; border-radius: 6px; font-size: 85%; }
+        pre { background-color: rgba(110,118,129,0.1); padding: 16px; border-radius: 6px; overflow-x: auto; max-width: 100%; }
+        code { font-family: ui-monospace, SFMono-Regular, SF Mono, Menlo, Consolas, monospace; background-color: rgba(110,118,129,0.2); padding: 0.2em 0.4em; border-radius: 6px; font-size: 85%; word-break: break-word; }
         pre code { background-color: transparent; padding: 0; }
-        table { border-collapse: collapse; width: 100%; margin-bottom: 16px; }
+        table { border-collapse: collapse; width: 100%; margin-bottom: 16px; display: block; overflow-x: auto; max-width: 100%; }
         th, td { border: 1px solid #30363d; padding: 6px 13px; }
         tr:nth-child(even) { background-color: rgba(255,255,255,0.05); }
-
         .heatmap-wrapper {
             overflow-x: auto;
+            max-width: 100%;
             padding: 16px;
             background-color: rgba(110,118,129,0.1);
             border-radius: 6px;
@@ -96,7 +103,8 @@ struct ReadmeWebView: UIViewRepresentable {
             margin-bottom: 32px;
         }
         .heatmap-wrapper img {
-            min-width: 650px; 
+            min-width: 650px;
+            max-width: none;
         }
         .stats-row {
             display: flex;

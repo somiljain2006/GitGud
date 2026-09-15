@@ -25,12 +25,23 @@ struct ContentView: View {
                 ForEach(DockTab.allCases, id: \.self) { tab in
                     if visitedTabs.contains(tab) {
                         tabContent(for: tab)
-                            .frame(maxWidth: .infinity, maxHeight: .infinity)
-                            .opacity(viewModel.selectedTab == tab ? 1 : 0)
-                            .allowsHitTesting(viewModel.selectedTab == tab)
+                            .frame(
+                                maxWidth: .infinity,
+                                maxHeight: .infinity
+                            )
+                            .opacity(
+                                viewModel.selectedTab == tab ? 1 : 0
+                            )
+                            .allowsHitTesting(
+                                viewModel.selectedTab == tab
+                            )
                     }
                 }
             }
+            .frame(
+                maxWidth: .infinity,
+                maxHeight: .infinity
+            )
 
             VStack(spacing: 0) {
                 Spacer()
@@ -51,6 +62,10 @@ struct ContentView: View {
                 bottomDock
             }
         }
+        .frame(
+            maxWidth: .infinity,
+            maxHeight: .infinity
+        )
         .preferredColorScheme(.dark)
         .sheet(isPresented: $isShowingAllRepos) {
             AllRepositoriesView(
@@ -86,7 +101,9 @@ struct ContentView: View {
                         )
                     }
                     .toolbar {
-                        ToolbarItem(placement: .navigationBarTrailing) {
+                        ToolbarItem(
+                            placement: .navigationBarTrailing
+                        ) {
                             Button("Close") {
                                 showingReadme = false
                             }
@@ -126,7 +143,9 @@ struct ContentView: View {
             )
 
             if exploreViewModel == nil {
-                exploreViewModel = ExploreViewModel(session: session)
+                exploreViewModel = ExploreViewModel(
+                    session: session
+                )
             }
         }
     }
@@ -153,12 +172,21 @@ struct ContentView: View {
     }
 
     private var homeContent: some View {
-        ScrollView(showsIndicators: false) {
-            VStack(alignment: .leading, spacing: 24) {
-                HeaderSection(avatarURL: viewModel.avatarURL)
-                    .onTapGesture {
-                        showingReadme = true
-                    }
+        ScrollView(
+            [.vertical],
+            showsIndicators: false
+        ) {
+            VStack(
+                alignment: .leading,
+                spacing: 24
+            ) {
+                HeaderSection(
+                    avatarURL: viewModel.avatarURL
+                )
+                .onTapGesture {
+                    showingReadme = true
+                }
+
                 QuickActionsSection(
                     actions: viewModel.quickActions
                 ) { action in
@@ -179,20 +207,41 @@ struct ContentView: View {
                         break
                     }
                 }
-                PinnedRepositoriesSection(repos: viewModel.pinnedRepos) {
+
+                PinnedRepositoriesSection(
+                    repos: viewModel.pinnedRepos
+                ) {
                     isShowingAllRepos = true
                 }
-                RecentActivitySection(activities: viewModel.activities)
-                MyWorkSection(items: viewModel.myWork)
+
+                RecentActivitySection(
+                    activities: viewModel.activities
+                )
+
+                MyWorkSection(
+                    items: viewModel.myWork
+                )
             }
+            .frame(
+                maxWidth: .infinity,
+                alignment: .leading
+            )
             .padding(.horizontal, 20)
             .padding(.top, 8)
             .padding(.bottom, 140)
         }
+        .frame(
+            maxWidth: .infinity,
+            maxHeight: .infinity
+        )
         .refreshable {
             let username = session.githubUsername
             let token = session.savedAccessKey
-            await viewModel.refreshData(for: username, token: token)
+
+            await viewModel.refreshData(
+                for: username,
+                token: token
+            )
         }
     }
 
